@@ -131,3 +131,67 @@ def test_compares_timestamps_with_different_utc_offsets():
 
     assert len(result) == 1
     assert result[0]["generation"] == 18000
+
+def test_excludes_forecast_one_second_after_cutoff():
+    snapshots = [
+        {
+            "publishTime": "2026-01-01T11:00:01Z",
+            "startTime": "2026-01-02T12:00:00Z",
+            "generation": 20000,
+        }
+    ]
+
+    result = select_forecast_snapshots(
+        snapshots,
+        "2026-01-01T11:00:00Z",
+    )
+
+    assert result == []
+
+
+def test_returns_results_in_delivery_time_order():
+    snapshots = [
+        {
+            "publishTime": "2026-01-01T09:00:00Z",
+            "startTime": "2026-01-01T14:00:00Z",
+            "generation": 14000,
+        },
+        {
+            "publishTime": "2026-01-01T09:00:00Z",
+            "startTime": "2026-01-01T12:00:00Z",
+            "generation": 12000,
+        },
+    ]
+
+    result = select_forecast_snapshots(
+        snapshots,
+        "2026-01-01T11:00:00Z",
+    )
+
+    assert [record["generation"] for record in result] == [12000, 14000]
+
+
+def test_skips_snapshot_missing_timestamp_fields():
+    snapshots = [
+        {
+            "startTime": "2026-01-01T12:00:00Z",
+            "generation": 18000,
+        },
+        {
+            "publishTime": "2026-01-01T09:00:00Z",
+            "generation": 19000,
+        },
+        {
+            "publishTime": "2026-01-01T10:00:00Z",
+            "startTime": "2026-01-01T12:00:00Z",
+            "generation": 19500,
+        },
+    ]
+
+    result = select_forecast_snapshots(
+        snapshots,
+        "2026-01-01T11:00:00Z",
+    )
+
+    assert len(result) == 1
+    assert result[0]["generation"] == 19500

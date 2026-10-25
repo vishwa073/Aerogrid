@@ -1,3 +1,4 @@
+
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -22,8 +23,11 @@ def select_forecast_snapshots(
 
     A snapshot is eligible when publishTime <= cutoff.
     Intervals with no eligible snapshot are omitted, not filled with zero.
+    Records missing startTime or publishTime are skipped.
+    Invalid or timezone-naive timestamps raise an error.
     """
     cutoff_time = _parse_utc(cutoff)
+
     selected: dict[str, dict[str, Any]] = {}
     selected_publish_times: dict[str, datetime] = {}
 
@@ -32,9 +36,7 @@ def select_forecast_snapshots(
         publish_time = snapshot.get("publishTime")
 
         if not start_time or not publish_time:
-            raise ValueError(
-                "Each forecast snapshot must contain startTime and publishTime"
-            )
+            continue
 
         parsed_start_time = _parse_utc(start_time)
         parsed_publish_time = _parse_utc(publish_time)
@@ -42,9 +44,7 @@ def select_forecast_snapshots(
         if parsed_publish_time > cutoff_time:
             continue
 
-        # Normalize the delivery interval to a consistent UTC key.
         start_key = parsed_start_time.isoformat()
-
         previous_publish_time = selected_publish_times.get(start_key)
 
         if (

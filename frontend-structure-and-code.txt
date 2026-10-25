@@ -1,0 +1,2058 @@
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\App.tsx
+==================================================
+
+import React, { useEffect, useState } from 'react';
+
+import { CutoffAuditTrail } from './components/dashboard/CutoffAuditTrail';
+import {
+  DashboardError,
+  DashboardLoading,
+} from './components/dashboard/DashboardStates';
+import { ErrorAnalytics } from './components/dashboard/ErrorAnalytics';
+import { GenerationChart } from './components/dashboard/GenerationChart';
+import { KpiGrid } from './components/dashboard/KpiGrid';
+import { WindShortfall } from './components/dashboard/WindShortfall';
+import { AppLayout } from './components/layout/AppLayout';
+import { Footer } from './components/layout/Footer';
+import { useEvaluation } from './hooks/useEvaluation';
+import { api } from './services/api';
+import type { HealthResponse } from './types/api';
+import { IntervalTable } from './components/dashboard/IntervalsTable';
+
+export const App: React.FC = () => {
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState('dashboard');
+
+  const { evaluation, loading, error, retry } = useEvaluation(11);
+
+  useEffect(() => {
+    let isActive = true;
+
+    api
+      .checkHealth()
+      .then((data) => {
+        if (isActive) {
+          setHealth(data);
+          setHealthError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (isActive) {
+          setHealthError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to connect to backend',
+          );
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const renderEvaluationState = (emptyMessage: string) => {
+    if (loading) {
+      return <DashboardLoading />;
+    }
+
+    if (error) {
+      return <DashboardError message={error} onRetry={retry} />;
+    }
+
+    if (!evaluation) {
+      return (
+        <section className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          {emptyMessage}
+        </section>
+      );
+    }
+
+    return null;
+  };
+
+  const renderDashboard = () => {
+    const evaluationState = renderEvaluationState(
+      'No evaluation data is available for this period.',
+    );
+
+    if (evaluationState) {
+      return (
+        <>
+          <section>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                  UK wind generation
+                </p>
+                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                  Forecast Overview
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+                  Understand how day-ahead wind forecasts compared with actual
+                  UK generation throughout January 2026.
+                </p>
+              </div>
+
+              <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+                Cutoff: 11:00 UTC
+              </span>
+            </div>
+          </section>
+
+          {evaluationState}
+        </>
+      );
+    }
+
+    if (!evaluation) {
+      return null;
+    }
+
+    return (
+      <>
+        <section>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                UK wind generation
+              </p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                Forecast Overview
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+                Understand how day-ahead wind forecasts compared with actual UK
+                generation throughout January 2026.
+              </p>
+            </div>
+
+            <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
+              Cutoff: 11:00 UTC
+            </span>
+          </div>
+        </section>
+
+        <section
+          aria-label="Evaluation summary"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+        >
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">
+              Comparison resolution
+            </p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">Hourly</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Actuals aggregated from half-hourly readings
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">
+              Matched intervals
+            </p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">
+              {evaluation.matched_interval_count.toLocaleString('en-GB')}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Matched forecast and actual pairs
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-medium text-slate-500">
+              Evaluation period
+            </p>
+            <p className="mt-2 text-lg font-semibold text-slate-900">
+              {evaluation.period.start} – {evaluation.period.end}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              UK national wind generation
+            </p>
+          </div>
+        </section>
+
+        <KpiGrid metrics={evaluation.metrics} />
+        <GenerationChart intervals={evaluation.intervals} />
+        <CutoffAuditTrail evaluation={evaluation} />
+        
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-slate-800">
+            Evaluation methodology
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            Actual generation is aggregated to hourly values by taking the mean
+            of the two half-hourly readings. Forecasts are selected using the
+            11:00 UTC day-ahead cutoff, and metrics are calculated over matched
+            hourly intervals.
+          </p>
+        </section>
+      </>
+    );
+  };
+
+  const renderSelectedView = () => {
+    if (currentView === 'accuracy') {
+      const evaluationState = renderEvaluationState(
+        'No evaluation data is available for Error Analytics.',
+      );
+
+      if (evaluationState) {
+        return evaluationState;
+      }
+
+      return evaluation ? <ErrorAnalytics evaluation={evaluation} /> : null;
+    }
+
+    if (currentView === 'procurement') {
+      const evaluationState = renderEvaluationState(
+        'No evaluation data is available for Wind Shortfall.',
+      );
+
+      if (evaluationState) {
+        return evaluationState;
+      }
+
+      return evaluation ? <WindShortfall evaluation={evaluation} /> : null;
+    }
+    if (currentView === 'intervals') {
+  const evaluationState = renderEvaluationState(
+    'No evaluation data is available for the interval table.',
+  );
+
+  if (evaluationState) {
+    return evaluationState;
+  }
+
+  return evaluation ? (
+    <section className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          Hourly Comparison Data
+        </h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Search, filter, and export matched wind generation actuals and forecasts.
+        </p>
+      </div>
+
+      <IntervalTable intervals={evaluation.intervals} />
+    </section>
+  ) : null;
+}
+
+    return renderDashboard();
+  };
+
+  return (
+    <AppLayout
+      health={health}
+      healthError={healthError}
+      currentView={currentView}
+      onNavigate={setCurrentView}
+    >
+      {renderSelectedView()}
+      <Footer />
+    </AppLayout>
+  );
+};
+
+export default App;
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\CutoffAuditTrail.tsx
+==================================================
+
+import { Clock3, Database, ShieldCheck } from 'lucide-react';
+import type { EvaluationResponse } from '../../types/api';
+
+interface CutoffAuditTrailProps {
+  evaluation: EvaluationResponse;
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('en-GB').format(value);
+}
+
+function formatUtcDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+}
+
+export function CutoffAuditTrail({
+  evaluation,
+}: CutoffAuditTrailProps) {
+  const {
+    cutoff_hour_utc,
+    actual_half_hourly_interval_count,
+    hourly_actual_interval_count,
+    selected_forecast_interval_count,
+    matched_interval_count,
+    intervals,
+  } = evaluation;
+
+  const auditRows = intervals.slice(0, 10);
+
+  return (
+    <section
+      aria-labelledby="cutoff-audit-title"
+      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+    >
+      <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
+            <ShieldCheck size={21} aria-hidden="true" />
+          </div>
+
+          <div>
+            <h2
+              id="cutoff-audit-title"
+              className="text-lg font-semibold text-slate-900"
+            >
+              Cutoff Audit Trail
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              January 2026 forecast selection summary
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 border-b border-slate-200 p-5 sm:grid-cols-2 xl:grid-cols-4 sm:p-6">
+        <div className="rounded-lg bg-slate-50 p-4">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Clock3 size={16} aria-hidden="true" />
+            Forecast cutoff
+          </div>
+          <p className="mt-2 text-xl font-semibold text-slate-900">
+            {String(cutoff_hour_utc).padStart(2, '0')}:00 UTC
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Previous-day publication deadline
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-slate-50 p-4">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Database size={16} aria-hidden="true" />
+            Half-hourly actuals
+          </div>
+          <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">
+            {formatNumber(actual_half_hourly_interval_count)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Source actual intervals
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-slate-50 p-4">
+          <p className="text-sm text-slate-500">Hourly actuals</p>
+          <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">
+            {formatNumber(hourly_actual_interval_count)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Aggregated actual intervals
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-slate-50 p-4">
+          <p className="text-sm text-slate-500">Matched intervals</p>
+          <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">
+            {formatNumber(matched_interval_count)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {formatNumber(selected_forecast_interval_count)} forecasts selected
+          </p>
+        </div>
+      </div>
+
+      <div className="p-5 sm:p-6">
+        <h3 className="font-semibold text-slate-900">
+          Matched forecast intervals
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Showing up to 10 intervals from the evaluation response. Publication
+          timestamps are not currently provided by this API response.
+        </p>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <th scope="col" className="px-3 py-3 font-medium">
+                  Delivery time (UTC)
+                </th>
+                <th scope="col" className="px-3 py-3 text-right font-medium">
+                  Actual (MW)
+                </th>
+                <th scope="col" className="px-3 py-3 text-right font-medium">
+                  Forecast (MW)
+                </th>
+                <th scope="col" className="px-3 py-3 text-right font-medium">
+                  Error (MW)
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {auditRows.map((interval) => (
+                <tr
+                  key={interval.start_time}
+                  className="transition-colors hover:bg-slate-50"
+                >
+                  <td className="whitespace-nowrap px-3 py-3 text-slate-700">
+                    {formatUtcDateTime(interval.start_time)}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-slate-700">
+                    {formatNumber(Math.round(interval.actual_mw))}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-slate-700">
+                    {formatNumber(Math.round(interval.forecast_mw))}
+                  </td>
+                  <td
+                    className={`px-3 py-3 text-right tabular-nums font-medium ${
+                      interval.actual_mw - interval.forecast_mw < 0
+                        ? 'text-red-600'
+                        : 'text-emerald-700'
+                    }`}
+                  >
+                    {formatNumber(
+                      Math.round(interval.actual_mw - interval.forecast_mw),
+                    )}
+                  </td>
+                </tr>
+              ))}
+
+              {auditRows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-3 py-8 text-center text-slate-500"
+                  >
+                    No matched intervals are available.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\DashboardPage.tsx
+==================================================
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\DashboardStates.tsx
+==================================================
+import type { CSSProperties } from 'react';
+
+interface SkeletonProps {
+  className?: string;
+  style?: CSSProperties;
+}
+
+function Skeleton({ className = '', style }: SkeletonProps) {
+  return (
+    <div
+      aria-hidden="true"
+      style={style}
+      className={`animate-pulse rounded-md bg-slate-200 ${className}`}
+    />
+  );
+}
+
+export function DashboardLoading() {
+  return (
+    <section
+      role="status"
+      aria-label="Loading wind generation analysis"
+      className="space-y-6"
+    >
+      <span className="sr-only">
+        Preparing your wind forecast analysis...
+      </span>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div
+            key={index}
+            className="rounded-xl border border-slate-200 bg-white p-5"
+          >
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="mt-4 h-8 w-28" />
+            <Skeleton className="mt-4 h-3 w-full" />
+            <Skeleton className="mt-2 h-3 w-3/4" />
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <Skeleton className="h-5 w-56" />
+        <Skeleton className="mt-2 h-3 w-72 max-w-full" />
+
+        <div className="mt-6 flex h-64 items-end gap-2 sm:h-80">
+          {Array.from({ length: 24 }, (_, index) => (
+            <Skeleton
+              key={index}
+              className="flex-1"
+              style={{
+                height: `${25 + ((index * 37) % 70)}%`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+interface DashboardErrorProps {
+  message: string;
+  onRetry: () => void;
+}
+
+export function DashboardError({
+  message,
+  onRetry,
+}: DashboardErrorProps) {
+  return (
+    <section
+      role="alert"
+      className="rounded-xl border border-red-200 bg-white p-6"
+    >
+      <h2 className="font-semibold text-slate-900">
+        We couldn't load the forecast analysis
+      </h2>
+
+      <p className="mt-2 text-sm text-slate-600">{message}</p>
+
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+      >
+        Try again
+      </button>
+    </section>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\ErrorAnalytics.tsx
+==================================================
+
+import { Activity, TrendingDown, TrendingUp } from 'lucide-react';
+import type { EvaluationResponse } from '../../types/api';
+
+interface ErrorAnalyticsProps {
+  evaluation: EvaluationResponse;
+}
+
+export function ErrorAnalytics({ evaluation }: ErrorAnalyticsProps) {
+  const { intervals, metrics } = evaluation;
+
+  const errors = intervals.map((interval) => ({
+    time: interval.start_time,
+    error: interval.actual_mw - interval.forecast_mw,
+  }));
+
+  const overForecastCount = errors.filter((item) => item.error < 0).length;
+  const underForecastCount = errors.filter((item) => item.error > 0).length;
+  const largestError = errors.reduce(
+    (largest, item) =>
+      Math.abs(item.error) > Math.abs(largest.error) ? item : largest,
+    { time: '', error: 0 },
+  );
+
+  const formatMw = (value: number) =>
+    `${new Intl.NumberFormat('en-GB', {
+      maximumFractionDigits: 1,
+    }).format(value)} MW`;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm font-medium text-slate-500">
+          January 2026 / Forecast performance
+        </p>
+        <h1 className="mt-1 text-2xl font-bold text-slate-900">
+          Error Analytics
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          Analyse the difference between actual and forecast wind generation.
+          Positive error means actual generation exceeded the forecast;
+          negative error means the forecast exceeded actual generation.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Activity size={18} />
+            Mean absolute error
+          </div>
+          <p className="mt-3 text-2xl font-bold text-slate-900">
+            {formatMw(metrics.mae_mw)}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Average magnitude of forecast error
+          </p>
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <TrendingDown size={18} />
+            Over-forecast intervals
+          </div>
+          <p className="mt-3 text-2xl font-bold text-slate-900">
+            {overForecastCount.toLocaleString('en-GB')}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Forecast generation was above actual generation
+          </p>
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <TrendingUp size={18} />
+            Under-forecast intervals
+          </div>
+          <p className="mt-3 text-2xl font-bold text-slate-900">
+            {underForecastCount.toLocaleString('en-GB')}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Actual generation was above forecast generation
+          </p>
+        </article>
+      </div>
+
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-5">
+          <h2 className="font-semibold text-slate-900">
+            Largest absolute forecast error
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            The interval with the greatest difference between actual and
+            forecast generation in the returned evaluation.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+          <div>
+            <p className="text-sm text-slate-500">Absolute error</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              {formatMw(Math.abs(largestError.error))}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-slate-500">Signed error</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              {formatMw(largestError.error)}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-slate-500">Interval start (UTC)</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              {largestError.time
+                ? new Date(largestError.time).toISOString().replace('T', ' ').slice(0, 16)
+                : 'No interval data'}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-5">
+          <h2 className="font-semibold text-slate-900">Largest errors</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            The 10 evaluation intervals with the largest absolute errors.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-5 py-3 font-medium">Interval (UTC)</th>
+                <th className="px-5 py-3 text-right font-medium">Actual (MW)</th>
+                <th className="px-5 py-3 text-right font-medium">Forecast (MW)</th>
+                <th className="px-5 py-3 text-right font-medium">Error (MW)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {[...intervals]
+                .sort(
+                  (a, b) =>
+                    Math.abs(b.actual_mw - b.forecast_mw) -
+                    Math.abs(a.actual_mw - a.forecast_mw),
+                )
+                .slice(0, 10)
+                .map((interval) => {
+                  const error = interval.actual_mw - interval.forecast_mw;
+
+                  return (
+                    <tr key={interval.start_time} className="hover:bg-slate-50">
+                      <td className="whitespace-nowrap px-5 py-3 text-slate-600">
+                        {new Date(interval.start_time)
+                          .toISOString()
+                          .replace('T', ' ')
+                          .slice(0, 16)}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {interval.actual_mw.toLocaleString('en-GB', {
+                          maximumFractionDigits: 1,
+                        })}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {interval.forecast_mw.toLocaleString('en-GB', {
+                          maximumFractionDigits: 1,
+                        })}
+                      </td>
+                      <td
+                        className={`px-5 py-3 text-right font-medium tabular-nums ${
+                          error < 0 ? 'text-rose-600' : error > 0 ? 'text-emerald-600' : 'text-slate-600'
+                        }`}
+                      >
+                        {error > 0 ? '+' : ''}
+                        {error.toLocaleString('en-GB', {
+                          maximumFractionDigits: 1,
+                        })}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\GenerationChart.tsx
+==================================================
+
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+
+import type { EvaluationInterval } from '../../types/api';
+
+interface GenerationChartProps {
+  intervals: EvaluationInterval[];
+}
+
+interface ChartPoint {
+  timestamp: string;
+  actual: number;
+  forecast: number;
+}
+
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+    hour12: false,
+  });
+}
+
+function formatMw(value: number): string {
+  return `${new Intl.NumberFormat('en-GB', {
+    maximumFractionDigits: 0,
+  }).format(value)} MW`;
+}
+
+export function GenerationChart({ intervals }: GenerationChartProps) {
+  const chartData: ChartPoint[] = intervals.map((interval) => ({
+    timestamp: interval.start_time,
+    actual: interval.actual_mw,
+    forecast: interval.forecast_mw,
+  }));
+
+  return (
+    <section
+      aria-labelledby="generation-chart-heading"
+      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+    >
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2
+            id="generation-chart-heading"
+            className="text-base font-semibold text-slate-900"
+          >
+            Forecast vs. actual generation
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Hourly UK wind generation throughout January 2026
+          </p>
+        </div>
+
+        <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+          MW · UTC
+        </span>
+      </div>
+
+      {chartData.length === 0 ? (
+        <div className="flex h-72 items-center justify-center text-sm text-slate-500">
+          No interval data is available to plot.
+        </div>
+      ) : (
+        <div className="h-80 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={chartData}
+              margin={{ top: 8, right: 16, left: 12, bottom: 8 }}
+            >
+              <CartesianGrid
+                stroke="#e2e8f0"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+
+              <XAxis
+                dataKey="timestamp"
+                tickFormatter={formatTimestamp}
+                tick={{ fill: '#64748b', fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: '#cbd5e1' }}
+                minTickGap={35}
+              />
+
+              <YAxis
+                tickFormatter={(value: number) =>
+                  new Intl.NumberFormat('en-GB', {
+                    notation: 'compact',
+                    maximumFractionDigits: 1,
+                  }).format(value)
+                }
+                tick={{ fill: '#64748b', fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                width={55}
+                domain={['auto', 'auto']}
+              />
+
+              <Tooltip
+                labelFormatter={(label) =>
+                  `Time: ${formatTimestamp(String(label))} UTC`
+                }
+                formatter={(value, name) => [
+                  formatMw(Number(value)),
+                  name === 'actual' ? 'Actual generation' : 'Forecast generation',
+                ]}
+                contentStyle={{
+                  borderRadius: 10,
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+                  fontSize: 12,
+                }}
+              />
+
+              <Legend
+                formatter={(value) =>
+                  value === 'actual' ? 'Actual generation' : 'Forecast generation'
+                }
+                wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+              />
+
+              <Line
+                type="monotone"
+                dataKey="actual"
+                name="actual"
+                stroke="#059669"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                name="forecast"
+                stroke="#64748b"
+                strokeWidth={2}
+                strokeDasharray="5 4"
+                dot={false}
+                activeDot={{ r: 4 }}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <p className="mt-3 text-xs leading-relaxed text-slate-500">
+        Each point represents one matched hourly interval. Hover over the chart
+        to compare actual and forecast generation. Timestamps are shown in UTC.
+      </p>
+    </section>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\IntervalsTable.tsx
+==================================================
+
+import React, { useMemo, useState } from 'react';
+import { Download, Search } from 'lucide-react';
+import type { EvaluationInterval } from '../../types/api';
+
+interface IntervalTableProps {
+  intervals: EvaluationInterval[];
+}
+
+type IntervalFilter = 'all' | 'shortfall' | 'surplus';
+
+export const IntervalTable: React.FC<IntervalTableProps> = ({
+  intervals,
+}) => {
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<IntervalFilter>('all');
+
+  const filteredIntervals = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return intervals.filter((interval) => {
+      const gap = interval.forecast_mw - interval.actual_mw;
+
+      const matchesSearch =
+        !query ||
+        interval.start_time.toLowerCase().includes(query) ||
+        new Date(interval.start_time)
+          .toLocaleString('en-GB', { timeZone: 'UTC' })
+          .toLowerCase()
+          .includes(query);
+
+      const matchesFilter =
+        filter === 'all' ||
+        (filter === 'shortfall' && gap > 0) ||
+        (filter === 'surplus' && gap < 0);
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [intervals, search, filter]);
+
+  const formatNumber = (value: number) =>
+    new Intl.NumberFormat('en-GB', {
+      maximumFractionDigits: 2,
+    }).format(value);
+
+  const formatTimestamp = (value: string) =>
+    `${new Date(value).toLocaleString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'UTC',
+    })} UTC`;
+
+  const exportCsv = () => {
+    const headers = [
+      'Delivery Time (UTC)',
+      'Actual Generation (MW)',
+      'Forecast Generation (MW)',
+      'Forecast Error (MW)',
+      'Shortfall Energy (MWh)',
+    ];
+
+    const rows = filteredIntervals.map((interval) => {
+      const gap = interval.forecast_mw - interval.actual_mw;
+
+      return [
+        formatTimestamp(interval.start_time),
+        interval.actual_mw,
+        interval.forecast_mw,
+        gap,
+        Math.max(gap, 0),
+      ];
+    });
+
+    const escapeCsvValue = (value: string | number) =>
+      `"${String(value).replace(/"/g, '""')}"`;
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(escapeCsvValue).join(','))
+      .join('\r\n');
+
+    const blob = new Blob(['\uFEFF', csv], {
+      type: 'text/csv;charset=utf-8;',
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'aerogrid-evaluation-intervals.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <section
+      aria-labelledby="interval-table-heading"
+      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+    >
+      <div className="border-b border-slate-200 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2
+              id="interval-table-heading"
+              className="text-lg font-semibold text-slate-900"
+            >
+              Evaluation intervals
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Search and compare matched hourly forecast and actual readings.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={filteredIntervals.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Export CSV
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <label className="relative block flex-1">
+            <span className="sr-only">Search delivery time</span>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search delivery time..."
+              className="w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            />
+          </label>
+
+          <label className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-sm text-slate-600">
+              Filter
+            </span>
+            <select
+              value={filter}
+              onChange={(event) =>
+                setFilter(event.target.value as IntervalFilter)
+              }
+              className="min-w-36 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            >
+              <option value="all">All intervals</option>
+              <option value="shortfall">Forecast shortfall</option>
+              <option value="surplus">Actual above forecast</option>
+            </select>
+          </label>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-500" aria-live="polite">
+          Showing {filteredIntervals.length.toLocaleString('en-GB')} of{' '}
+          {intervals.length.toLocaleString('en-GB')} intervals
+        </p>
+      </div>
+
+      {filteredIntervals.length === 0 ? (
+        <div className="p-10 text-center">
+          <p className="text-sm font-medium text-slate-700">
+            No matching intervals
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Try another search term or filter.
+          </p>
+        </div>
+      ) : (
+        <div className="max-h-[600px] overflow-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th scope="col" className="px-5 py-3 font-medium">
+                  Delivery time (UTC)
+                </th>
+                <th scope="col" className="px-5 py-3 text-right font-medium">
+                  Actual (MW)
+                </th>
+                <th scope="col" className="px-5 py-3 text-right font-medium">
+                  Forecast (MW)
+                </th>
+                <th scope="col" className="px-5 py-3 text-right font-medium">
+                  Error (MW)
+                </th>
+                <th scope="col" className="px-5 py-3 text-right font-medium">
+                  Shortfall (MWh)
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {filteredIntervals.map((interval) => {
+                const gap = interval.forecast_mw - interval.actual_mw;
+
+                return (
+                  <tr
+                    key={interval.start_time}
+                    className="transition-colors hover:bg-slate-50"
+                  >
+                    <td className="whitespace-nowrap px-5 py-3 text-slate-700">
+                      {formatTimestamp(interval.start_time)}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums text-slate-700">
+                      {formatNumber(interval.actual_mw)}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums text-slate-700">
+                      {formatNumber(interval.forecast_mw)}
+                    </td>
+                    <td
+                      className={`px-5 py-3 text-right font-medium tabular-nums ${
+                        gap > 0
+                          ? 'text-amber-700'
+                          : gap < 0
+                            ? 'text-emerald-700'
+                            : 'text-slate-600'
+                      }`}
+                    >
+                      {gap > 0 ? '+' : ''}
+                      {formatNumber(gap)}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums text-slate-700">
+                      {formatNumber(Math.max(gap, 0))}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+};
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\KpiCard.tsx
+==================================================
+
+import type { LucideIcon } from 'lucide-react';
+
+interface KpiCardProps {
+  title: string;
+  value: string;
+  unit: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+export function KpiCard({
+  title,
+  value,
+  unit,
+  description,
+  icon: Icon,
+}: KpiCardProps) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-slate-500">
+            {title}
+          </h3>
+
+          <div className="mt-3 flex flex-wrap items-baseline gap-2">
+            <p className="text-2xl font-bold tracking-tight text-slate-900">
+              {value}
+            </p>
+            <span className="text-sm text-slate-500">{unit}</span>
+          </div>
+        </div>
+
+        <div className="shrink-0 rounded-lg bg-emerald-50 p-2.5">
+          <Icon
+            aria-hidden="true"
+            className="h-5 w-5 text-emerald-700"
+          />
+        </div>
+      </div>
+
+      <p className="mt-3 border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-500">
+        {description}
+      </p>
+    </article>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\KpiGrid.tsx
+==================================================
+
+import {
+  Gauge,
+  BarChart3,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+} from 'lucide-react';
+
+import { KpiCard } from './KpiCard';
+import type { ForecastMetrics } from '../../types/api';
+
+interface KpiGridProps {
+  metrics: ForecastMetrics;
+}
+
+const formatNumber = (value: number): string =>
+  new Intl.NumberFormat('en-GB', {
+    maximumFractionDigits: 1,
+  }).format(value);
+
+export function KpiGrid({ metrics }: KpiGridProps) {
+  const biasDescription =
+    metrics.bias_mw < 0
+      ? 'Forecasts exceed actual generation on average.'
+      : metrics.bias_mw > 0
+        ? 'Actual generation exceeds forecasts on average.'
+        : 'No average signed bias.';
+
+  const biasIcon =
+    metrics.bias_mw < 0
+      ? TrendingDown
+      : metrics.bias_mw > 0
+        ? TrendingUp
+        : Gauge;
+
+  const cards = [
+    {
+      title: 'Mean absolute error',
+      value: formatNumber(metrics.mae_mw),
+      unit: 'MW',
+      description: 'Average absolute difference between forecast and actual.',
+      icon: Gauge,
+    },
+    {
+      title: 'Root mean squared error',
+      value: formatNumber(metrics.rmse_mw),
+      unit: 'MW',
+      description: 'Penalises larger forecast errors more heavily.',
+      icon: BarChart3,
+    },
+    {
+      title: 'Forecast bias',
+      value: formatNumber(metrics.bias_mw),
+      unit: 'MW',
+      description: biasDescription,
+      icon: biasIcon,
+    },
+    {
+      title: 'Shortfall energy',
+      value: formatNumber(metrics.shortfall_energy_mwh),
+      unit: 'MWh',
+      description: 'Accumulated positive forecast-minus-actual exposure.',
+      icon: Zap,
+    },
+  ];
+
+  return (
+    <section aria-labelledby="evaluation-metrics-heading">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2
+          id="evaluation-metrics-heading"
+          className="text-sm font-semibold text-slate-800"
+        >
+          Evaluation metrics
+        </h2>
+
+        <span className="text-xs text-slate-500">
+          {formatNumber(metrics.interval_count)} matched intervals
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <KpiCard key={card.title} {...card} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\dashboard\WindShortfall.tsx
+==================================================
+
+import React from 'react';
+import { AlertTriangle, TrendingDown, Zap } from 'lucide-react';
+import type { EvaluationResponse } from '../../types/api';
+
+interface WindShortfallProps {
+  evaluation: EvaluationResponse;
+}
+
+export const WindShortfall: React.FC<WindShortfallProps> = ({
+  evaluation,
+}) => {
+  const shortfallIntervals = evaluation.intervals
+    .filter((interval) => interval.forecast_mw > interval.actual_mw)
+    .map((interval) => ({
+      ...interval,
+      shortfallMw: interval.forecast_mw - interval.actual_mw,
+      shortfallMwh:
+        (interval.forecast_mw - interval.actual_mw) * 1,
+    }))
+    .sort((a, b) => b.shortfallMw - a.shortfallMw);
+
+  const largestShortfalls = shortfallIntervals.slice(0, 10);
+
+  const formatNumber = (value: number) =>
+    new Intl.NumberFormat('en-GB', {
+      maximumFractionDigits: 2,
+    }).format(value);
+
+  const formatDateTime = (value: string) =>
+    new Date(value).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'UTC',
+    }) + ' UTC';
+
+  return (
+    <section aria-labelledby="shortfall-heading" className="space-y-6">
+      <div>
+        <p className="text-sm font-medium text-emerald-700">
+          PROCUREMENT INSIGHTS
+        </p>
+        <h1
+          id="shortfall-heading"
+          className="mt-1 text-2xl font-bold tracking-tight text-slate-900"
+        >
+          Wind Shortfall
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          Identify periods when forecast wind generation exceeded actual
+          generation. These gaps help highlight potential wind generation
+          shortfalls during January 2026.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <article className="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg bg-amber-50 p-2 text-amber-700">
+              <Zap className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <p className="text-sm font-medium text-slate-600">
+              Total wind shortfall energy
+            </p>
+          </div>
+          <p className="mt-4 text-3xl font-bold tabular-nums text-slate-900">
+            {formatNumber(evaluation.metrics.shortfall_energy_mwh)}
+            <span className="ml-2 text-sm font-medium text-slate-500">
+              MWh
+            </span>
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Calculated across matched hourly intervals.
+          </p>
+        </article>
+
+        <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg bg-slate-100 p-2 text-slate-700">
+              <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <p className="text-sm font-medium text-slate-600">
+              Shortfall intervals
+            </p>
+          </div>
+          <p className="mt-4 text-3xl font-bold tabular-nums text-slate-900">
+            {shortfallIntervals.length}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Matched hours where forecast generation exceeded actual generation.
+          </p>
+        </article>
+      </div>
+
+      <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-5">
+          <div className="flex items-center gap-2">
+            <TrendingDown
+              className="h-5 w-5 text-amber-600"
+              aria-hidden="true"
+            />
+            <h2 className="font-semibold text-slate-900">
+              Largest forecast shortfalls
+            </h2>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            The ten matched hours with the largest forecast-minus-actual gaps.
+          </p>
+        </div>
+
+        {largestShortfalls.length === 0 ? (
+          <p className="p-6 text-sm text-slate-600">
+            No forecast shortfalls were found in the matched intervals.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    Delivery time
+                  </th>
+                  <th scope="col" className="px-5 py-3 text-right font-medium">
+                    Forecast (MW)
+                  </th>
+                  <th scope="col" className="px-5 py-3 text-right font-medium">
+                    Actual (MW)
+                  </th>
+                  <th scope="col" className="px-5 py-3 text-right font-medium">
+                    Gap (MW)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {largestShortfalls.map((interval) => (
+                  <tr key={interval.start_time} className="hover:bg-slate-50">
+                    <td className="whitespace-nowrap px-5 py-3 text-slate-700">
+                      {formatDateTime(interval.start_time)}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums text-slate-700">
+                      {formatNumber(interval.forecast_mw)}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums text-slate-700">
+                      {formatNumber(interval.actual_mw)}
+                    </td>
+                    <td className="px-5 py-3 text-right font-semibold tabular-nums text-amber-700">
+                      {formatNumber(interval.shortfallMw)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </article>
+
+      <aside className="rounded-xl border border-slate-200 bg-slate-100/70 p-5">
+        <h2 className="font-semibold text-slate-900">
+          How shortfall energy is calculated
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          For each matched interval, the forecast-minus-actual gap is floored
+          at zero. Because this evaluation uses hourly intervals, each gap in
+          MW is multiplied by one hour to calculate MWh.
+        </p>
+        <p className="mt-3 font-mono text-sm text-slate-800">
+          Shortfall (MWh) = max(Forecast (MW) − Actual (MW), 0) × 1 hour
+        </p>
+      </aside>
+    </section>
+  );
+};
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\layout\AppLayout.tsx
+==================================================
+
+import { useEffect, useState } from 'react';
+import { Menu, X } from 'lucide-react';
+import type { ReactNode } from 'react';
+
+import { Sidebar } from './Sidebar';
+import { Header } from './Header';
+import type { HealthResponse } from '../../types/api';
+
+interface AppLayoutProps {
+  children: ReactNode;
+  health: HealthResponse | null;
+  healthError: string | null;
+  currentView: string;
+  onNavigate: (view: string) => void;
+}
+
+export function AppLayout({
+  children,
+  health,
+  healthError,
+  currentView,
+  onNavigate,
+}: AppLayoutProps) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
+
+  function handleNavigate(view: string) {
+    onNavigate(view);
+    setMobileMenuOpen(false);
+  }
+
+  return (
+    <div className="flex h-dvh overflow-hidden bg-slate-50">
+      {/* Desktop sidebar */}
+      <aside className="hidden h-full shrink-0 md:flex">
+        <Sidebar
+          currentView={currentView}
+          onNavigate={handleNavigate}
+        />
+      </aside>
+
+      {/* Main application area */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Mobile navigation bar */}
+        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
+
+          <span className="text-sm font-semibold text-slate-900">
+            AeroGrid
+          </span>
+
+          <span className="ml-auto text-xs text-slate-500">
+            January 2026
+          </span>
+        </div>
+
+        {/* Persistent header */}
+        <div className="sticky top-0 z-30 shrink-0">
+          <Header health={health} healthError={healthError} />
+        </div>
+
+        {/* Independently scrolling content */}
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="mx-auto w-full max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {/* Mobile navigation drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Close navigation backdrop"
+            className="absolute inset-0 h-full w-full cursor-default bg-slate-950/50"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          <aside
+            id="mobile-navigation"
+            aria-label="Mobile navigation"
+            className="absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col bg-aerogrid-navy-900 shadow-2xl"
+          >
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-aerogrid-navy-800 px-4">
+              <span className="text-sm font-semibold text-white">
+                Navigation
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close navigation menu"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-300 transition-colors hover:bg-aerogrid-navy-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <Sidebar
+                currentView={currentView}
+                onNavigate={handleNavigate}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\layout\Footer.tsx
+==================================================
+
+export function Footer() {
+  return (
+    <footer className="border-t border-slate-200 pt-4 text-xs text-slate-500">
+      AeroGrid <span aria-hidden="true">·</span> January 2026
+      <span aria-hidden="true">·</span> Wind generation analysis
+    </footer>
+  );
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\layout\Header.tsx
+==================================================
+import React from 'react'
+import {
+  Calendar,
+  Clock,
+  Activity,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react'
+import { HealthResponse } from '../../types/api'
+
+interface HeaderProps {
+  health: HealthResponse | null
+  healthError: string | null
+}
+
+export const Header: React.FC<HeaderProps> = ({ health, healthError }) => {
+  return (
+    <header className='flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6'>
+      
+      <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
+        <div className='flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200'>
+          <Calendar className='w-3.5 h-3.5 text-slate-500' />
+          <span>Scope: UK National Wind (January 2026)</span>
+        </div>
+
+        <div className='flex items-center gap-1.5 text-xs text-slate-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200/80'>
+          <Clock className='w-3.5 h-3.5 text-emerald-600' />
+          <span className='font-medium text-emerald-900'>
+            Cutoff Policy:{' '}
+            <span className='font-semibold'>Day-Ahead 11:00 UTC</span>
+          </span>
+          <span className='text-[10px] text-emerald-700 bg-emerald-100 px-1 rounded ml-1 font-mono'>
+            Provisional Assumption
+          </span>
+        </div>
+      </div>
+      {/* Backend Health Badge */}
+      <div className='flex items-center gap-3'>
+        {health ? (
+          <div className='flex items-center gap-2 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200'>
+            <CheckCircle2 className='w-3.5 h-3.5 text-emerald-500' />
+            <span className='font-medium'>
+              Backend: {health.status} (v{health.version})
+            </span>
+          </div>
+        ) : healthError ? (
+          <div className='flex items-center gap-2 text-xs px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200'>
+            <AlertCircle className='w-3.5 h-3.5 text-red-500' />
+            <span className='font-medium'>Backend Offline</span>
+          </div>
+        ) : (
+          <div className='flex items-center gap-2 text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600'>
+            <Activity className='w-3.5 h-3.5 animate-spin text-slate-400' />
+            <span>Connecting...</span>
+          </div>
+        )}
+      </div>
+    </header>
+  )
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\components\layout\Sidebar.tsx
+==================================================
+
+import React from 'react';
+import {
+  Wind,
+  BarChart3,
+  Clock,
+  AlertTriangle,
+  Layers,
+  ShieldCheck,
+} from 'lucide-react';
+
+interface SidebarProps {
+  currentView?: string;
+  onNavigate?: (view: string) => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentView = 'dashboard',
+  onNavigate,
+}) => {
+  const navItems = [
+    { id: 'dashboard', label: 'Forecast Overview', icon: BarChart3 },
+    { id: 'accuracy', label: 'Error Analytics', icon: Wind },
+    { id: 'timeline', label: 'Cutoff Audit Trail', icon: Clock },
+    { id: 'procurement', label: 'Wind Shortfall', icon: AlertTriangle },
+    { id: 'intervals', label: 'Half-Hourly Data', icon: Layers },
+  ];
+
+  return (
+    <aside className="flex min-h-screen w-64 flex-col justify-between select-none border-r border-aerogrid-navy-800 bg-aerogrid-navy-900 text-slate-300">
+      <div>
+        {/* Brand Header */}
+        <div className="flex h-16 items-center gap-3 border-b border-aerogrid-navy-800 px-6">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-aerogrid-emerald-600 to-teal-400 text-white shadow-md shadow-emerald-950/40">
+            <Wind className="h-5 w-5 animate-pulse" />
+          </div>
+
+          <div>
+            <h1 className="flex items-center gap-1.5 text-base font-bold tracking-tight text-white">
+              AeroGrid
+              <span className="rounded border border-aerogrid-emerald-500/20 bg-aerogrid-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-aerogrid-emerald-500">
+                UK
+              </span>
+            </h1>
+            <p className="text-[11px] text-slate-400">
+              Wind Intelligence Desk
+            </p>
+          </div>
+        </div>
+
+        {/* Navigation Items */}
+        <nav aria-label="Analysis navigation" className="space-y-1 p-3">
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            Analysis Suite
+          </div>
+
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isSelected = item.id === currentView;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onNavigate?.(item.id)}
+                aria-current={isSelected ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${
+                  isSelected
+                    ? 'border-l-2 border-aerogrid-emerald-500 bg-aerogrid-navy-800 text-white shadow-sm'
+                    : 'text-slate-400 hover:bg-aerogrid-navy-800/50 hover:text-slate-200'
+                }`}
+              >
+                <Icon
+                  className={`h-4 w-4 ${
+                    isSelected
+                      ? 'text-aerogrid-emerald-500'
+                      : 'text-slate-400'
+                  }`}
+                />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* System Status Footer */}
+      <div className="border-t border-aerogrid-navy-800/80 bg-aerogrid-navy-950/40 p-4">
+        <div className="mb-2 flex items-center gap-2.5 text-xs text-slate-300">
+          <ShieldCheck className="h-4 w-4 text-aerogrid-emerald-500" />
+          <span className="font-semibold text-slate-200">System Ready</span>
+        </div>
+
+        <p className="text-[11px] leading-relaxed text-slate-400">
+          Elexon BMRS data evaluation dashboard.
+        </p>
+      </div>
+    </aside>
+  );
+};
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\hooks\useEvaluation.ts
+==================================================
+
+import { useEffect, useState } from 'react';
+import { api } from '../services/api';
+import type { EvaluationResponse } from '../types/api';
+
+interface UseEvaluationResult {
+  evaluation: EvaluationResponse | null;
+  loading: boolean;
+  error: string | null;
+  retry: () => void;
+}
+
+export function useEvaluation(cutoffHourUtc = 11): UseEvaluationResult {
+  const [evaluation, setEvaluation] = useState<EvaluationResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let isActive = true;
+
+    setLoading(true);
+    setError(null);
+
+    api.getJanuaryEvaluation(cutoffHourUtc)
+      .then((data) => {
+        if (isActive) setEvaluation(data);
+      })
+      .catch((err: unknown) => {
+        if (isActive) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to load the January evaluation',
+          );
+        }
+      })
+      .finally(() => {
+        if (isActive) setLoading(false);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [cutoffHourUtc, refreshKey]);
+
+  return {
+    evaluation,
+    loading,
+    error,
+    retry: () => setRefreshKey((current) => current + 1),
+  };
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\main.tsx
+==================================================
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './styles/index.css';
+
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\services\api.ts
+==================================================
+
+import type {
+  EvaluationResponse,
+  HealthResponse,
+} from '../types/api';
+
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || ''
+).replace(/\/$/, '');
+
+class ApiService {
+  private baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
+
+  async checkHealth(): Promise<HealthResponse> {
+    const response = await fetch(`${this.baseUrl}/health`);
+
+    if (!response.ok) {
+      throw new Error(
+        `Health check failed with status: ${response.status}`
+      );
+    }
+
+    return response.json() as Promise<HealthResponse>;
+  }
+
+  async getJanuaryEvaluation(
+    cutoffHourUtc = 11
+  ): Promise<EvaluationResponse> {
+    const params = new URLSearchParams({
+      cutoff_hour_utc: String(cutoffHourUtc),
+    });
+
+    const response = await fetch(
+      `${this.baseUrl}/api/v1/evaluation/january-2026?${params}`
+    );
+
+    if (!response.ok) {
+      let message = `Evaluation request failed with status: ${response.status}`;
+
+      try {
+        const errorBody = await response.json();
+        if (typeof errorBody.detail === 'string') {
+          message = errorBody.detail;
+        }
+      } catch {
+        // Keep the original status-based error message.
+      }
+
+      throw new Error(message);
+    }
+
+    return response.json() as Promise<EvaluationResponse>;
+  }
+}
+
+export const api = new ApiService(API_BASE_URL);
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\styles\index.css
+==================================================
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased text-slate-800 bg-slate-50 selection:bg-emerald-500 selection:text-white;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full hover:bg-slate-400;
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\types\api.ts
+==================================================
+
+export interface HealthResponse {
+  status: string;
+  app: string;
+  version: string;
+  environment: string;
+  timestamp: string;
+}
+
+export interface ApiError {
+  detail: string;
+  code?: string;
+}
+
+export interface EvaluationPeriod {
+  start: string;
+  end: string;
+}
+
+export interface ForecastMetrics {
+  interval_count: number;
+  mae_mw: number;
+  rmse_mw: number;
+  bias_mw: number;
+  shortfall_energy_mwh: number;
+}
+
+export interface EvaluationInterval {
+  start_time: string;
+  actual_mw: number;
+  forecast_mw: number;
+}
+
+export interface EvaluationResponse {
+  period: EvaluationPeriod;
+  cutoff_hour_utc: number;
+  actual_half_hourly_interval_count: number;
+  hourly_actual_interval_count: number;
+  selected_forecast_interval_count: number;
+  matched_interval_count: number;
+  comparison_resolution: string;
+  actual_aggregation: string;
+  metrics: ForecastMetrics;
+  intervals: EvaluationInterval[];
+}
+
+
+==================================================
+FILE: D:\AeroGrid\frontend\src\vite-env.d.ts
+==================================================
+/// <reference types="vite/client" />
+
+interface ImportMetaEnv {
+  readonly VITE_API_BASE_URL: string;
+  readonly VITE_APP_TITLE: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}

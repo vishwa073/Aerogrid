@@ -3,7 +3,10 @@ from math import sqrt
 from typing import Any
 
 
-def calculate_forecast_metrics(pairs: list[dict[str, Any]]) -> dict[str, Any]:
+def calculate_forecast_metrics(
+    pairs: list[dict[str, Any]],
+    interval_hours: float = 1.0,
+) -> dict[str, Any]:
     """
     Calculate wind forecast accuracy using matched actual and forecast intervals.
 
@@ -11,9 +14,17 @@ def calculate_forecast_metrics(pairs: list[dict[str, Any]]) -> dict[str, Any]:
       - actual_mw: measured wind generation in MW
       - forecast_mw: forecast wind generation in MW
 
+    Args:
+        pairs: Matched actual and forecast intervals.
+        interval_hours: Duration of each interval in hours.
+            Use 1.0 for hourly data and 0.5 for half-hourly data.
+
     Missing intervals should be excluded before calling this function,
     not represented as zero.
     """
+    if interval_hours <= 0:
+        raise ValueError("interval_hours must be greater than zero")
+
     valid_pairs = [
         pair
         for pair in pairs
@@ -40,7 +51,8 @@ def calculate_forecast_metrics(pairs: list[dict[str, Any]]) -> dict[str, Any]:
 
     # A negative error means actual generation was below forecast.
     shortfall_energy_mwh = sum(
-        max(-error, 0.0) * 0.5 for error in errors
+        max(-error, 0.0) * interval_hours
+        for error in errors
     )
 
     count = len(errors)

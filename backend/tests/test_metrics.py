@@ -9,7 +9,7 @@ def test_calculates_accuracy_metrics():
         {"actual_mw": 80, "forecast_mw": 100},
     ]
 
-    result = calculate_forecast_metrics(pairs)
+    result = calculate_forecast_metrics(pairs, interval_hours=0.5)
 
     assert result["interval_count"] == 2
     assert result["mae_mw"] == pytest.approx(15.0)

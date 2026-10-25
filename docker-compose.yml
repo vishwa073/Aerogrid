@@ -25,6 +25,7 @@ services:
       - BACKEND_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
       - ELEXON_API_BASE_URL=https://data.elexon.co.uk/bmrs/api/v1
       - DEFAULT_DECISION_CUTOFF_TIME=11:00
+      - DATABASE_URL=${DATABASE_URL}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
