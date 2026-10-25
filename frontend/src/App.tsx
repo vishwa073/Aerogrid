@@ -1,54 +1,24 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 
-import { CutoffAuditTrail } from './components/dashboard/CutoffAuditTrail';
-import {
-  DashboardError,
-  DashboardLoading,
-} from './components/dashboard/DashboardStates';
-import { ErrorAnalytics } from './components/dashboard/ErrorAnalytics';
-import { GenerationChart } from './components/dashboard/GenerationChart';
-import { KpiGrid } from './components/dashboard/KpiGrid';
-import { WindShortfall } from './components/dashboard/WindShortfall';
+import { DashboardError, DashboardLoading } from './components/dashboard/DashboardStates';
+import { DashboardPage } from './components/dashboard/DashboardPage';
+import { AccuracyPage } from './components/dashboard/AccuracyPage';
+import { ProcurementPage } from './components/dashboard/ProcurementPage';
+import { IntervalsPage } from './components/dashboard/IntervalsPage';
+import { TimelinePage } from './components/dashboard/TimelinePage';
+
 import { AppLayout } from './components/layout/AppLayout';
 import { Footer } from './components/layout/Footer';
+
 import { useEvaluation } from './hooks/useEvaluation';
-import { api } from './services/api';
-import type { HealthResponse } from './types/api';
-import { IntervalTable } from './components/dashboard/IntervalsTable';
+import { useHealth } from './hooks/useHealth';
 
 export const App: React.FC = () => {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [healthError, setHealthError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
 
   const { evaluation, loading, error, retry } = useEvaluation(11);
-
-  useEffect(() => {
-    let isActive = true;
-
-    api
-      .checkHealth()
-      .then((data) => {
-        if (isActive) {
-          setHealth(data);
-          setHealthError(null);
-        }
-      })
-      .catch((err: unknown) => {
-        if (isActive) {
-          setHealthError(
-            err instanceof Error
-              ? err.message
-              : 'Failed to connect to backend',
-          );
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
+  const { health, healthError } = useHealth();
 
   const renderEvaluationState = (emptyMessage: string) => {
     if (loading) {
@@ -70,176 +40,44 @@ export const App: React.FC = () => {
     return null;
   };
 
-  const renderDashboard = () => {
+  const renderSelectedView = () => {
+    const emptyMessages: Record<string, string> = {
+      dashboard: 'No evaluation data is available for this period.',
+      accuracy: 'No evaluation data is available for Error Analytics.',
+      procurement: 'No evaluation data is available for Wind Shortfall.',
+      intervals: 'No evaluation data is available for the interval table.',
+      timeline: 'No evaluation data is available for the cutoff audit trail.',
+    };
+
     const evaluationState = renderEvaluationState(
-      'No evaluation data is available for this period.',
+      emptyMessages[currentView] ?? emptyMessages.dashboard,
     );
 
     if (evaluationState) {
-      return (
-        <>
-          <section>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                  UK wind generation
-                </p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-                  Forecast Overview
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-                  Understand how day-ahead wind forecasts compared with actual
-                  UK generation throughout January 2026.
-                </p>
-              </div>
-
-              <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
-                Cutoff: 11:00 UTC
-              </span>
-            </div>
-          </section>
-
-          {evaluationState}
-        </>
-      );
+      return evaluationState;
     }
 
     if (!evaluation) {
       return null;
     }
 
-    return (
-      <>
-        <section>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                UK wind generation
-              </p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-                Forecast Overview
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-                Understand how day-ahead wind forecasts compared with actual UK
-                generation throughout January 2026.
-              </p>
-            </div>
+    switch (currentView) {
+      case 'accuracy':
+        return <AccuracyPage evaluation={evaluation} />;
 
-            <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
-              Cutoff: 11:00 UTC
-            </span>
-          </div>
-        </section>
+      case 'procurement':
+        return <ProcurementPage evaluation={evaluation} />;
 
-        <section
-          aria-label="Evaluation summary"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-        >
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-medium text-slate-500">
-              Comparison resolution
-            </p>
-            <p className="mt-2 text-lg font-semibold text-slate-900">Hourly</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Actuals aggregated from half-hourly readings
-            </p>
-          </div>
+      case 'intervals':
+        return <IntervalsPage evaluation={evaluation} />;
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-medium text-slate-500">
-              Matched intervals
-            </p>
-            <p className="mt-2 text-lg font-semibold text-slate-900">
-              {evaluation.matched_interval_count.toLocaleString('en-GB')}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Matched forecast and actual pairs
-            </p>
-          </div>
+      case 'timeline':
+        return <TimelinePage evaluation={evaluation} />;
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <p className="text-xs font-medium text-slate-500">
-              Evaluation period
-            </p>
-            <p className="mt-2 text-lg font-semibold text-slate-900">
-              {evaluation.period.start} – {evaluation.period.end}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              UK national wind generation
-            </p>
-          </div>
-        </section>
-
-        <KpiGrid metrics={evaluation.metrics} />
-        <GenerationChart intervals={evaluation.intervals} />
-        <CutoffAuditTrail evaluation={evaluation} />
-        
-
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-800">
-            Evaluation methodology
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Actual generation is aggregated to hourly values by taking the mean
-            of the two half-hourly readings. Forecasts are selected using the
-            11:00 UTC day-ahead cutoff, and metrics are calculated over matched
-            hourly intervals.
-          </p>
-        </section>
-      </>
-    );
-  };
-
-  const renderSelectedView = () => {
-    if (currentView === 'accuracy') {
-      const evaluationState = renderEvaluationState(
-        'No evaluation data is available for Error Analytics.',
-      );
-
-      if (evaluationState) {
-        return evaluationState;
-      }
-
-      return evaluation ? <ErrorAnalytics evaluation={evaluation} /> : null;
+      case 'dashboard':
+      default:
+        return <DashboardPage evaluation={evaluation} />;
     }
-
-    if (currentView === 'procurement') {
-      const evaluationState = renderEvaluationState(
-        'No evaluation data is available for Wind Shortfall.',
-      );
-
-      if (evaluationState) {
-        return evaluationState;
-      }
-
-      return evaluation ? <WindShortfall evaluation={evaluation} /> : null;
-    }
-    if (currentView === 'intervals') {
-  const evaluationState = renderEvaluationState(
-    'No evaluation data is available for the interval table.',
-  );
-
-  if (evaluationState) {
-    return evaluationState;
-  }
-
-  return evaluation ? (
-    <section className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Hourly Comparison Data
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Search, filter, and export matched wind generation actuals and forecasts.
-        </p>
-      </div>
-
-      <IntervalTable intervals={evaluation.intervals} />
-    </section>
-  ) : null;
-}
-
-    return renderDashboard();
   };
 
   return (

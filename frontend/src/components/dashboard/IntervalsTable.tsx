@@ -9,11 +9,36 @@ interface IntervalTableProps {
 
 type IntervalFilter = 'all' | 'shortfall' | 'surplus';
 
+const INTERVAL_DURATION_HOURS = 1;
+
 export const IntervalTable: React.FC<IntervalTableProps> = ({
   intervals,
 }) => {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<IntervalFilter>('all');
+
+  const formatNumber = (value: number): string =>
+    new Intl.NumberFormat('en-GB', {
+      maximumFractionDigits: 2,
+    }).format(value);
+
+  const formatTimestamp = (value: string): string => {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return 'Invalid timestamp';
+    }
+
+    return `${date.toLocaleString('en-GB', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'UTC',
+    })} UTC`;
+  };
 
   const filteredIntervals = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -21,13 +46,16 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
     return intervals.filter((interval) => {
       const gap = interval.forecast_mw - interval.actual_mw;
 
+      const date = new Date(interval.start_time);
+
+      const searchableTimestamp = Number.isNaN(date.getTime())
+        ? interval.start_time
+        : `${interval.start_time} ${date
+            .toLocaleString('en-GB', { timeZone: 'UTC' })
+            .toLowerCase()}`;
+
       const matchesSearch =
-        !query ||
-        interval.start_time.toLowerCase().includes(query) ||
-        new Date(interval.start_time)
-          .toLocaleString('en-GB', { timeZone: 'UTC' })
-          .toLowerCase()
-          .includes(query);
+        !query || searchableTimestamp.toLowerCase().includes(query);
 
       const matchesFilter =
         filter === 'all' ||
@@ -38,23 +66,11 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
     });
   }, [intervals, search, filter]);
 
-  const formatNumber = (value: number) =>
-    new Intl.NumberFormat('en-GB', {
-      maximumFractionDigits: 2,
-    }).format(value);
-
-  const formatTimestamp = (value: string) =>
-    `${new Date(value).toLocaleString('en-GB', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'UTC',
-    })} UTC`;
-
   const exportCsv = () => {
+    if (filteredIntervals.length === 0) {
+      return;
+    }
+
     const headers = [
       'Delivery Time (UTC)',
       'Actual Generation (MW)',
@@ -63,20 +79,23 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
       'Shortfall Energy (MWh)',
     ];
 
+    const escapeCsvValue = (value: string | number): string =>
+      `"${String(value).replace(/"/g, '""')}"`;
+
     const rows = filteredIntervals.map((interval) => {
       const gap = interval.forecast_mw - interval.actual_mw;
+      const timestamp = new Date(interval.start_time);
 
       return [
-        formatTimestamp(interval.start_time),
+        Number.isNaN(timestamp.getTime())
+          ? interval.start_time
+          : timestamp.toISOString(),
         interval.actual_mw,
         interval.forecast_mw,
         gap,
-        Math.max(gap, 0),
+        Math.max(gap, 0) * INTERVAL_DURATION_HOURS,
       ];
     });
-
-    const escapeCsvValue = (value: string | number) =>
-      `"${String(value).replace(/"/g, '""')}"`;
 
     const csv = [headers, ...rows]
       .map((row) => row.map(escapeCsvValue).join(','))
@@ -91,10 +110,15 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
 
     link.href = url;
     link.download = 'aerogrid-evaluation-intervals.csv';
+    link.style.display = 'none';
+
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   };
 
   return (
@@ -111,6 +135,7 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
             >
               Evaluation intervals
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
               Search and compare matched hourly forecast and actual readings.
             </p>
@@ -130,10 +155,12 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <label className="relative block flex-1">
             <span className="sr-only">Search delivery time</span>
+
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
               aria-hidden="true"
             />
+
             <input
               type="search"
               value={search}
@@ -147,6 +174,7 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
             <span className="whitespace-nowrap text-sm text-slate-600">
               Filter
             </span>
+
             <select
               value={filter}
               onChange={(event) =>
@@ -167,13 +195,18 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
         </p>
       </div>
 
-      {filteredIntervals.length === 0 ? (
+      {intervals.length === 0 || filteredIntervals.length === 0 ? (
         <div className="p-10 text-center">
           <p className="text-sm font-medium text-slate-700">
-            No matching intervals
+            {intervals.length === 0
+              ? 'No evaluation intervals available'
+              : 'No matching intervals'}
           </p>
+
           <p className="mt-1 text-sm text-slate-500">
-            Try another search term or filter.
+            {intervals.length === 0
+              ? 'Evaluation data is not available yet.'
+              : 'Try another search term or filter.'}
           </p>
         </div>
       ) : (
@@ -184,16 +217,32 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
                 <th scope="col" className="px-5 py-3 font-medium">
                   Delivery time (UTC)
                 </th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">
+
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-right font-medium"
+                >
                   Actual (MW)
                 </th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">
+
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-right font-medium"
+                >
                   Forecast (MW)
                 </th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">
+
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-right font-medium"
+                >
                   Error (MW)
                 </th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">
+
+                <th
+                  scope="col"
+                  className="px-5 py-3 text-right font-medium"
+                >
                   Shortfall (MWh)
                 </th>
               </tr>
@@ -203,6 +252,9 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
               {filteredIntervals.map((interval) => {
                 const gap = interval.forecast_mw - interval.actual_mw;
 
+                const shortfallEnergy =
+                  Math.max(gap, 0) * INTERVAL_DURATION_HOURS;
+
                 return (
                   <tr
                     key={interval.start_time}
@@ -211,12 +263,15 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
                     <td className="whitespace-nowrap px-5 py-3 text-slate-700">
                       {formatTimestamp(interval.start_time)}
                     </td>
+
                     <td className="px-5 py-3 text-right tabular-nums text-slate-700">
                       {formatNumber(interval.actual_mw)}
                     </td>
+
                     <td className="px-5 py-3 text-right tabular-nums text-slate-700">
                       {formatNumber(interval.forecast_mw)}
                     </td>
+
                     <td
                       className={`px-5 py-3 text-right font-medium tabular-nums ${
                         gap > 0
@@ -229,8 +284,9 @@ export const IntervalTable: React.FC<IntervalTableProps> = ({
                       {gap > 0 ? '+' : ''}
                       {formatNumber(gap)}
                     </td>
+
                     <td className="px-5 py-3 text-right tabular-nums text-slate-700">
-                      {formatNumber(Math.max(gap, 0))}
+                      {formatNumber(shortfallEnergy)}
                     </td>
                   </tr>
                 );

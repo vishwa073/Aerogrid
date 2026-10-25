@@ -23,7 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'accuracy', label: 'Error Analytics', icon: Wind },
     { id: 'timeline', label: 'Cutoff Audit Trail', icon: Clock },
     { id: 'procurement', label: 'Wind Shortfall', icon: AlertTriangle },
-    { id: 'intervals', label: 'Half-Hourly Data', icon: Layers },
+    { id: 'intervals', label: 'Hourly Data', icon: Layers },
   ];
 
   return (

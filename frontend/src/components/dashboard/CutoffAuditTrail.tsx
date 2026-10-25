@@ -7,7 +7,10 @@ interface CutoffAuditTrailProps {
 }
 
 function formatNumber(value: number): string {
-  return new Intl.NumberFormat('en-GB').format(value);
+  return new Intl.NumberFormat('en-GB', {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  }).format(value);
 }
 
 function formatUtcDateTime(value: string): string {
@@ -52,6 +55,7 @@ export function CutoffAuditTrail({
             >
               Cutoff Audit Trail
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
               January 2026 forecast selection summary
             </p>
@@ -65,9 +69,11 @@ export function CutoffAuditTrail({
             <Clock3 size={16} aria-hidden="true" />
             Forecast cutoff
           </div>
+
           <p className="mt-2 text-xl font-semibold text-slate-900">
             {String(cutoff_hour_utc).padStart(2, '0')}:00 UTC
           </p>
+
           <p className="mt-1 text-xs text-slate-500">
             Previous-day publication deadline
           </p>
@@ -78,9 +84,11 @@ export function CutoffAuditTrail({
             <Database size={16} aria-hidden="true" />
             Half-hourly actuals
           </div>
+
           <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">
             {formatNumber(actual_half_hourly_interval_count)}
           </p>
+
           <p className="mt-1 text-xs text-slate-500">
             Source actual intervals
           </p>
@@ -88,9 +96,11 @@ export function CutoffAuditTrail({
 
         <div className="rounded-lg bg-slate-50 p-4">
           <p className="text-sm text-slate-500">Hourly actuals</p>
+
           <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">
             {formatNumber(hourly_actual_interval_count)}
           </p>
+
           <p className="mt-1 text-xs text-slate-500">
             Aggregated actual intervals
           </p>
@@ -98,9 +108,11 @@ export function CutoffAuditTrail({
 
         <div className="rounded-lg bg-slate-50 p-4">
           <p className="text-sm text-slate-500">Matched intervals</p>
+
           <p className="mt-2 text-xl font-semibold tabular-nums text-slate-900">
             {formatNumber(matched_interval_count)}
           </p>
+
           <p className="mt-1 text-xs text-slate-500">
             {formatNumber(selected_forecast_interval_count)} forecasts selected
           </p>
@@ -108,69 +120,109 @@ export function CutoffAuditTrail({
       </div>
 
       <div className="p-5 sm:p-6">
-        <h3 className="font-semibold text-slate-900">
-          Matched forecast intervals
-        </h3>
-        <p className="mt-1 text-sm text-slate-500">
-          Showing up to 10 intervals from the evaluation response. Publication
-          timestamps are not currently provided by this API response.
-        </p>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="font-semibold text-slate-900">
+              Matched forecast intervals
+            </h3>
 
-        <div className="mt-4 overflow-x-auto">
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-500">
+              A sample of up to 10 matched hourly intervals from the evaluation
+              response. Publication timestamps are not included in this
+              response, so this table cannot independently verify forecast
+              selection against the cutoff.
+            </p>
+          </div>
+
+          <span className="mt-2 inline-flex w-fit items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 sm:mt-0">
+            {formatNumber(auditRows.length)} of{' '}
+            {formatNumber(intervals.length)} intervals
+          </span>
+        </div>
+
+        <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
           <table className="w-full min-w-[520px] text-left text-sm">
-            <thead>
+            <thead className="bg-slate-50">
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                <th scope="col" className="px-3 py-3 font-medium">
+                <th scope="col" className="px-4 py-3 font-medium">
                   Delivery time (UTC)
                 </th>
-                <th scope="col" className="px-3 py-3 text-right font-medium">
+
+                <th scope="col" className="px-4 py-3 text-right font-medium">
                   Actual (MW)
                 </th>
-                <th scope="col" className="px-3 py-3 text-right font-medium">
+
+                <th scope="col" className="px-4 py-3 text-right font-medium">
                   Forecast (MW)
                 </th>
-                <th scope="col" className="px-3 py-3 text-right font-medium">
+
+                <th scope="col" className="px-4 py-3 text-right font-medium">
                   Error (MW)
                 </th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {auditRows.map((interval) => (
-                <tr
-                  key={interval.start_time}
-                  className="transition-colors hover:bg-slate-50"
-                >
-                  <td className="whitespace-nowrap px-3 py-3 text-slate-700">
-                    {formatUtcDateTime(interval.start_time)}
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums text-slate-700">
-                    {formatNumber(Math.round(interval.actual_mw))}
-                  </td>
-                  <td className="px-3 py-3 text-right tabular-nums text-slate-700">
-                    {formatNumber(Math.round(interval.forecast_mw))}
-                  </td>
-                  <td
-                    className={`px-3 py-3 text-right tabular-nums font-medium ${
-                      interval.actual_mw - interval.forecast_mw < 0
-                        ? 'text-red-600'
-                        : 'text-emerald-700'
-                    }`}
+              {auditRows.map((interval) => {
+                const error = interval.actual_mw - interval.forecast_mw;
+
+                return (
+                  <tr
+                    key={interval.start_time}
+                    className="transition-colors hover:bg-slate-50"
                   >
-                    {formatNumber(
-                      Math.round(interval.actual_mw - interval.forecast_mw),
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                      {formatUtcDateTime(interval.start_time)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+                      {formatNumber(interval.actual_mw)}
+                    </td>
+
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">
+                      {formatNumber(interval.forecast_mw)}
+                    </td>
+
+                    <td
+                      className={`px-4 py-3 text-right font-medium tabular-nums ${
+                        error < 0
+                          ? 'text-rose-600'
+                          : error > 0
+                            ? 'text-emerald-700'
+                            : 'text-slate-600'
+                      }`}
+                    >
+                      {error > 0 ? '+' : ''}
+                      {formatNumber(error)}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {auditRows.length === 0 && (
                 <tr>
                   <td
                     colSpan={4}
-                    className="px-3 py-8 text-center text-slate-500"
+                    className="px-4 py-10 text-center"
                   >
-                    No matched intervals are available.
+                    <div className="mx-auto flex max-w-sm flex-col items-center">
+                      <div className="rounded-full bg-slate-100 p-3">
+                        <Database
+                          size={20}
+                          className="text-slate-500"
+                          aria-hidden="true"
+                        />
+                      </div>
+
+                      <p className="mt-3 text-sm font-medium text-slate-700">
+                        No matched intervals available
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        Matched interval data will appear here when the
+                        evaluation returns results.
+                      </p>
+                    </div>
                   </td>
                 </tr>
               )}
