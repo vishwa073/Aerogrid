@@ -8,11 +8,11 @@ potential wind generation shortfall.
 ## Demo and repository
 
 - **Live application:** `https://<live-application-url>` *(placeholder)*
-- **Public GitHub repository:** `https://github.com/<owner>/<repository>` *(placeholder)*
+- **Public GitHub repository:** `https://github.com/vishwa073/Aerogrid`
 - **Local API documentation:** [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
 
-The live application and public repository URLs have not been specified in
-this repository and must be filled in before submission.
+The live application URL has not been specified in this repository and must be
+filled in before submission.
 
 ## Features
 
@@ -137,12 +137,9 @@ unavailable.
 
 ### Clone the repository
 
-Replace the placeholder repository URL with the public repository URL before
-running the command:
-
 ```powershell
-git clone https://github.com/<owner>/<repository>.git
-cd <repository>
+git clone https://github.com/vishwa073/Aerogrid.git
+cd Aerogrid
 ```
 
 For the checked-out project, the directory containing `docker-compose.yml` is
