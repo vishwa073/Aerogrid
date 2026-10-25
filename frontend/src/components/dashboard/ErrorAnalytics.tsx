@@ -1,6 +1,21 @@
 
-import { Activity, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  Activity,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import type { EvaluationResponse } from '../../types/api';
+import { GenerationChart } from './GenerationChart';
 
 interface ErrorAnalyticsProps {
   evaluation: EvaluationResponse;
@@ -28,11 +43,11 @@ export function ErrorAnalytics({ evaluation }: ErrorAnalyticsProps) {
 
   const errors = intervals.map((interval) => ({
     ...interval,
-    error: interval.actual_mw - interval.forecast_mw,
+    error: interval.forecast_mw - interval.actual_mw,
   }));
 
-  const overForecastCount = errors.filter((item) => item.error < 0).length;
-  const underForecastCount = errors.filter((item) => item.error > 0).length;
+  const overForecastCount = errors.filter((item) => item.error > 0).length;
+  const underForecastCount = errors.filter((item) => item.error < 0).length;
 
   const largestError = errors.reduce<(typeof errors)[number] | null>(
     (largest, item) =>
@@ -57,8 +72,8 @@ export function ErrorAnalytics({ evaluation }: ErrorAnalyticsProps) {
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           Analyse the difference between actual and forecast wind generation.
-          Positive error means actual generation exceeded the forecast;
-          negative error means the forecast exceeded actual generation.
+          Error is calculated as forecast minus actual: positive values mean
+          overforecasting, while negative values mean underforecasting.
         </p>
       </div>
 
@@ -98,10 +113,120 @@ export function ErrorAnalytics({ evaluation }: ErrorAnalyticsProps) {
             {underForecastCount.toLocaleString('en-GB')}
           </p>
           <p className="mt-2 text-xs text-slate-500">
-            Actual generation was above forecast generation
+            Forecast generation was below actual generation
           </p>
         </article>
       </div>
+
+      <GenerationChart intervals={intervals} />
+
+      <section
+        aria-labelledby="error-over-time-heading"
+        className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2
+              id="error-over-time-heading"
+              className="text-base font-semibold text-slate-900"
+            >
+              Forecast error over time
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Signed error (forecast minus actual) for each matched hourly
+              interval.
+            </p>
+          </div>
+          <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+            MW · UTC
+          </span>
+        </div>
+
+        {errors.length === 0 ? (
+          <div className="flex h-72 items-center justify-center text-sm text-slate-500">
+            No interval data is available to plot.
+          </div>
+        ) : (
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={errors}
+                margin={{ top: 8, right: 16, left: 12, bottom: 8 }}
+              >
+                <CartesianGrid
+                  stroke="#e2e8f0"
+                  strokeDasharray="3 3"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="start_time"
+                  tickFormatter={formatTimestamp}
+                  tick={{ fill: '#64748b', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#cbd5e1' }}
+                  minTickGap={35}
+                />
+                <YAxis
+                  tickFormatter={(value: number) =>
+                    new Intl.NumberFormat('en-GB', {
+                      notation: 'compact',
+                      maximumFractionDigits: 1,
+                    }).format(value)
+                  }
+                  tick={{ fill: '#64748b', fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={55}
+                  domain={['auto', 'auto']}
+                />
+                <ReferenceLine
+                  y={0}
+                  stroke="#334155"
+                  strokeWidth={2}
+                  label={{
+                    value: 'Zero error',
+                    fill: '#334155',
+                    fontSize: 11,
+                    position: 'insideTopRight',
+                  }}
+                />
+                <Tooltip
+                  labelFormatter={(label) =>
+                    `Time: ${formatTimestamp(String(label))} UTC`
+                  }
+                  formatter={(value) => [
+                    `${formatNumber(Number(value))} MW`,
+                    'Forecast error',
+                  ]}
+                  contentStyle={{
+                    borderRadius: 10,
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)',
+                    fontSize: 12,
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="error"
+                  name="error"
+                  stroke="#0f766e"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        <p className="mt-3 text-xs leading-relaxed text-slate-500">
+          Values above zero indicate overforecasting; values below zero
+          indicate underforecasting. Hover for the signed error at each UTC
+          interval.
+        </p>
+      </section>
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-5">
@@ -144,7 +269,9 @@ export function ErrorAnalytics({ evaluation }: ErrorAnalyticsProps) {
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-5">
-          <h2 className="font-semibold text-slate-900">Largest errors</h2>
+          <h2 className="font-semibold text-slate-900">
+            Largest forecast misses
+          </h2>
           <p className="mt-1 text-sm text-slate-500">
             The 10 evaluation intervals with the largest absolute errors.
           </p>
@@ -163,10 +290,10 @@ export function ErrorAnalytics({ evaluation }: ErrorAnalyticsProps) {
                     Interval (UTC)
                   </th>
                   <th scope="col" className="px-5 py-3 text-right font-medium">
-                    Actual (MW)
+                    Forecast (MW)
                   </th>
                   <th scope="col" className="px-5 py-3 text-right font-medium">
-                    Forecast (MW)
+                    Actual (MW)
                   </th>
                   <th scope="col" className="px-5 py-3 text-right font-medium">
                     Error (MW)
@@ -180,10 +307,10 @@ export function ErrorAnalytics({ evaluation }: ErrorAnalyticsProps) {
                       {formatTimestamp(interval.start_time)}
                     </td>
                     <td className="px-5 py-3 text-right tabular-nums">
-                      {formatNumber(interval.actual_mw)}
+                      {formatNumber(interval.forecast_mw)}
                     </td>
                     <td className="px-5 py-3 text-right tabular-nums">
-                      {formatNumber(interval.forecast_mw)}
+                      {formatNumber(interval.actual_mw)}
                     </td>
                     <td
                       className={`px-5 py-3 text-right font-medium tabular-nums ${

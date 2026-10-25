@@ -1,9 +1,15 @@
 # AeroGrid
 
-AeroGrid is a full-stack wind generation forecast evaluation dashboard for the
-UK electricity market. It compares day-ahead wind generation forecasts with
-actual generation to help assess forecast accuracy and identify periods of
-potential wind generation shortfall.
+> **Wind forecast intelligence for the UK electricity market**
+
+AeroGrid is a full-stack evaluation dashboard that compares day-ahead wind
+generation forecasts with metered generation. It turns raw BMRS data into
+traceable accuracy metrics, interval-level analysis, forecast-miss
+visualizations, and wind shortfall insights.
+
+The project demonstrates an end-to-end workflow across data retrieval,
+time-series alignment, domain calculations, API design, responsive data
+visualization, and containerized delivery.
 
 ## Demo and repository
 
@@ -11,22 +17,32 @@ potential wind generation shortfall.
 - **Public GitHub repository:** `https://github.com/vishwa073/Aerogrid`
 - **Local API documentation:** [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
 
-The live application URL has not been specified in this repository and must be
-filled in before submission.
+The live application URL is not currently configured. The dashboard can be
+run locally using Docker Compose.
 
-## Features
+## Product capabilities
 
-The current implementation provides:
+- **Forecast accuracy:** MAE, RMSE, signed bias, and shortfall energy.
+- **Forecast vs. actual:** Interactive UTC time-series comparison in MW.
+- **Error analytics:** Signed forecast error over time with a zero baseline and
+  a ranked list of the ten largest forecast misses.
+- **Wind shortfall analysis:** Highlights intervals where forecast generation
+  exceeds actual generation.
+- **Interval exploration:** Search and filter matched hourly intervals by
+  delivery time and shortfall/surplus status.
+- **Data export:** CSV export of the currently filtered interval view.
+- **Cutoff evaluation:** Configurable day-ahead publication cutoff through the
+  `cutoff_hour_utc` query parameter.
+- **Operational feedback:** Loading, empty, API error, health, and readiness
+  states are represented in the dashboard.
 
-- Forecast accuracy metrics: mean absolute error (MAE), root mean square error
-  (RMSE), and signed bias
-- Actual-versus-forecast wind generation comparison
-- Wind shortfall analysis for matched hourly intervals
-- Hourly interval data with delivery-time search and shortfall/surplus filters
-- CSV export of the currently filtered interval table
-- Configurable day-ahead publication cutoff evaluation through the
-  `cutoff_hour_utc` query parameter
-- Docker Compose-based local execution for the frontend and backend services
+## Why this project
+
+Forecast error is operationally meaningful: overforecasting can obscure
+generation shortfalls, while underforecasting can affect planning decisions.
+AeroGrid makes the calculation path visible from upstream data through to
+interval-level evidence, rather than presenting aggregate metrics without
+context.
 
 ## Technology stack
 
@@ -90,23 +106,24 @@ Previously validated January 2026 results are:
 The endpoint returns these values under the `metrics` object and reports the
 matched interval count as `matched_interval_count`.
 
-### Metric definitions
+### Metric definitions and sign conventions
 
 - **MAE:** The mean absolute error over matched hourly intervals.
 - **RMSE:** The square root of the mean squared error. Squaring the errors
   gives larger errors more influence than MAE.
-- **Bias:** The signed mean error over matched intervals.
+- **Bias:** The signed mean error over matched intervals as returned by the
+  backend.
 - **Shortfall energy:** A separate accumulated energy measure in MWh. It is
   not an accuracy score and sums positive forecast-minus-actual gaps over the
   hourly intervals.
 
-The current backend implementation calculates its signed error as
-`actual_mw - forecast_mw`. Under that implementation, a negative bias means
-actual generation was below forecast generation on average. This is the
-convention represented by the current `metrics.bias_mw` response field. If
-the assignment requires the opposite presentation convention
-(`forecast - actual`), the sign convention should be reconciled in the
-implementation and reported results before submission.
+The backend's validated `metrics.bias_mw` field uses
+`actual_mw - forecast_mw`; therefore, a negative bias means actual generation
+was below forecast generation on average. The Error Analytics visualization
+also presents a user-facing forecast error using `forecast_mw - actual_mw`:
+positive values mean overforecasting and negative values mean
+underforecasting. The two conventions are labelled explicitly in the
+interface.
 
 ### Day-ahead publication cutoff
 
@@ -147,10 +164,11 @@ the project root.
 
 ### Configure environment variables
 
-Create a root `.env` file from the supplied template:
+Create a root `.env` file locally. The file is intentionally ignored by Git
+and must contain your own PostgreSQL credentials:
 
 ```powershell
-Copy-Item .env.example .env
+New-Item .env -ItemType File
 ```
 
 For Docker Compose, set `DATABASE_URL` in `.env` to a reachable PostgreSQL
@@ -162,9 +180,8 @@ DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>:<port>/<database>
 ```
 
 The Compose configuration supplies the application name, API prefix, Elexon
-API base URL, development settings, CORS origins, and the default
-`11:00` cutoff. The `.env.example` file also documents settings used for
-direct backend or frontend development, including `VITE_API_BASE_URL`.
+API base URL, development settings, CORS origins, and the default `11:00`
+cutoff. Never commit `.env` or database credentials.
 
 ### Start the services
 
@@ -238,9 +255,8 @@ AeroGrid/
 │   ├── package.json
 │   ├── package-lock.json
 │   └── vite.config.ts
-├── .env.example
+├── .gitignore
 ├── docker-compose.yml
-├── frontend-structure-and-code.txt
 └── README.md
 ```
 
@@ -280,16 +296,18 @@ For a service-level check after starting Compose, inspect
 `docker compose -f docker-compose.yml ps` and request
 [http://localhost:8000/health/ready](http://localhost:8000/health/ready).
 
-## AI Tools and Development Assistance
+## AI-assisted development disclosure
 
-ChatGPT was used for documentation improvement during this project. Its role
-was to help organize the assignment README, explain implementation details
-clearly, and identify documentation gaps while reviewing the repository.
+GitHub Copilot, accessed through the Copilot SDK in VS Code, was used as a
+development assistant during this project. It supported repository
+exploration, implementation suggestions, frontend visualization work, README
+editing, and validation planning.
 
-AI suggestions were reviewed against the implementation. The API routes,
-evaluation logic, cutoff behavior, and reported metrics were checked against
-the available source code and project evidence. AI output was not assumed to
-be automatically correct.
+All generated suggestions were reviewed and adapted manually. The developer
+retained responsibility for the architecture, data flow, evaluation
+calculations, security decisions, and final code. The API routes, cutoff
+behavior, reported January 2026 metrics, and production build were checked
+against the implementation rather than accepted without verification.
 
 ## Limitations and future improvements
 
