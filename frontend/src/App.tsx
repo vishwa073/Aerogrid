@@ -1,153 +1,177 @@
-import React, { useEffect, useState } from 'react';
-import { Sidebar } from './components/layout/Sidebar';
-import { Header } from './components/layout/Header';
-import { api } from './services/api';
-import { HealthResponse } from './types/api';
-import { CheckCircle2, Server, Shield } from 'lucide-react';
+import React, { useEffect, useState } from 'react'
+import { CutoffAuditTrail } from './components/dashboard/CutoffAuditTrail'
+import {
+  DashboardError,
+  DashboardLoading
+} from './components/dashboard/DashboardStates'
 
+import { ErrorAnalytics } from './components/dashboard/ErrorAnalytics';
+import { KpiGrid } from './components/dashboard/KpiGrid'
+import { useEvaluation } from './hooks/useEvaluation'
+import { api } from './services/api'
+import type { HealthResponse } from './types/api'
+import { GenerationChart } from './components/dashboard/GenerationChart'
+import { AppLayout } from './components/layout/AppLayout'
+import { Footer } from './components/layout/Footer'
 export const App: React.FC = () => {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [healthError, setHealthError] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthResponse | null>(null)
+  const [healthError, setHealthError] = useState<string | null>(null)
+  const [currentView, setCurrentView] = useState('dashboard');
+  const { evaluation, loading, error, retry } = useEvaluation(11)
 
   useEffect(() => {
-    let isMounted = true;
-    api.checkHealth()
-      .then((data) => {
-        if (isMounted) {
-          setHealth(data);
+    let isActive = true
+
+    api
+      .checkHealth()
+      .then(data => {
+        if (isActive) {
+          setHealth(data)
+          setHealthError(null)
         }
       })
-      .catch((err) => {
-        if (isMounted) {
-          setHealthError(err.message || 'Failed to connect to backend');
+      .catch((err: unknown) => {
+        if (isActive) {
+          setHealthError(
+            err instanceof Error ? err.message : 'Failed to connect to backend'
+          )
         }
-      });
+      })
 
     return () => {
-      isMounted = false;
-    };
-  }, []);
+      isActive = false
+    }
+  }, [])
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      {/* Navigation Sidebar */}
-      <Sidebar />
+    <AppLayout
+  health={health}
+  healthError={healthError}
+  currentView={currentView}
+  onNavigate={setCurrentView}
+> {currentView === 'accuracy' ? (
+  !loading && !error && evaluation ? (
+    <ErrorAnalytics evaluation={evaluation} />
+  ) : loading ? (
+    <DashboardLoading />
+  ) : error ? (
+    <DashboardError message={error} onRetry={retry} />
+  ) : (
+    <section className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+      No evaluation data is available for Error Analytics.
+    </section>
+  )
+) : (
+  <>
+    {/* YOUR EXISTING DASHBOARD CONTENT GOES HERE */}
+  </>
+)}
+      <section>
+        <div className='flex flex-wrap items-start justify-between gap-3'>
+          <div>
+            <p className='text-xs font-semibold uppercase tracking-wider text-emerald-700'>
+              UK wind generation
+            </p>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header health={health} healthError={healthError} />
+            <h1 className='mt-1 text-2xl font-bold tracking-tight text-slate-900'>
+              Forecast Overview
+            </h1>
 
-        <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-6">
-          {/* Phase 1 Scaffold Status Card */}
-          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
-                    Phase 1 Foundation Ready
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">v0.1.0</span>
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight pt-1">
-                  AeroGrid Architecture & Scaffolding
-                </h2>
-                <p className="text-sm text-slate-600 max-w-3xl">
-                  A production-minded wind forecast intelligence platform for UK electricity utilities,
-                  comparing national day-ahead wind generation forecasts with outturn generation from Elexon BMRS.
-                </p>
-              </div>
-            </div>
-
-            {/* Architecture Verification Matrix */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-100">
-              {/* Frontend Card */}
-              <div className="p-4 rounded-lg bg-slate-50 border border-slate-200/60">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Frontend Stack</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  React 18, TypeScript, Vite, Tailwind CSS, Lucide React, and Recharts initialized and building cleanly.
-                </p>
-              </div>
-
-              {/* Backend Card */}
-              <div className="p-4 rounded-lg bg-slate-50 border border-slate-200/60">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <Server className="w-4 h-4 text-emerald-600" />
-                  <span>Backend Stack</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  FastAPI service with Pydantic validation, CORS middleware, and <code className="text-slate-800 font-mono">/health</code> endpoint active.
-                </p>
-              </div>
-
-              {/* Data & Cutoff Governance Card */}
-              <div className="p-4 rounded-lg bg-slate-50 border border-slate-200/60">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <Shield className="w-4 h-4 text-emerald-600" />
-                  <span>Decision Cutoff Policy</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Isolated in configuration. Cutoff selection rule prevents future forecast leakage. Elexon endpoints verified.
-                </p>
-              </div>
-            </div>
+            <p className='mt-2 max-w-2xl text-sm leading-relaxed text-slate-600'>
+              Understand how day-ahead wind forecasts compared with actual UK
+              generation throughout January 2026.
+            </p>
           </div>
 
-          {/* Implementation Road Map */}
-          <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-xs">
-            <h3 className="text-sm font-semibold text-slate-900 mb-4">Phase Implementation Roadmap</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50/60 border border-emerald-200/80">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">1</div>
-                  <div>
-                    <div className="text-xs font-semibold text-emerald-950">Phase 1: Project Scaffolding & Docker Foundation</div>
-                    <div className="text-[11px] text-emerald-700">Project structure, configs, health checks, Dockerfiles, and tests verified.</div>
-                  </div>
-                </div>
-                <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Completed</span>
-              </div>
+          <span className='rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600'>
+            Cutoff: 11:00 UTC
+          </span>
+        </div>
+      </section>
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/60">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold">2</div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900">Phase 2: Elexon Ingestion & Domain Calculation Engine</div>
-                    <div className="text-[11px] text-slate-500">FUELHH/WINDFOR client with caching, decision cutoff rule, and unit tests (MAE, RMSE, bias).</div>
-                  </div>
-                </div>
-                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Pending Approval</span>
-              </div>
+      {loading && (
+        <section
+          role='status'
+          className='rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600'
+        >
+          Preparing your wind forecast analysis…
+        </section>
+      )}
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/60 opacity-75">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold">3</div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900">Phase 3: Backend REST Endpoints</div>
-                    <div className="text-[11px] text-slate-500">Summary, Timeseries, Accuracy, Audit, and Interval endpoints.</div>
-                  </div>
-                </div>
-                <span className="text-xs font-medium text-slate-400">Scheduled</span>
-              </div>
+      {loading && <DashboardLoading />}
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/60 opacity-75">
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-bold">4</div>
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900">Phase 4: Dashboard React UI Components</div>
-                    <div className="text-[11px] text-slate-500">Stitch-inspired layout, 4 KPI cards, Recharts chart, and Half-Hourly table.</div>
-                  </div>
-                </div>
-                <span className="text-xs font-medium text-slate-400">Scheduled</span>
-              </div>
+      {!loading && error && <DashboardError message={error} onRetry={retry} />}
+
+      {!loading && !error && evaluation && (
+        <>
+          <section
+            aria-label='Evaluation summary'
+            className='grid grid-cols-1 gap-3 sm:grid-cols-3'
+          >
+            <div className='rounded-xl border border-slate-200 bg-white p-4'>
+              <p className='text-xs font-medium text-slate-500'>
+                Comparison resolution
+              </p>
+              <p className='mt-2 text-lg font-semibold text-slate-900'>
+                Hourly
+              </p>
+              <p className='mt-1 text-xs text-slate-500'>
+                Actuals aggregated from half-hourly readings
+              </p>
             </div>
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-};
 
-export default App;
+            <div className='rounded-xl border border-slate-200 bg-white p-4'>
+              <p className='text-xs font-medium text-slate-500'>
+                Matched intervals
+              </p>
+              <p className='mt-2 text-lg font-semibold text-slate-900'>
+                {evaluation.matched_interval_count.toLocaleString('en-GB')}
+              </p>
+              <p className='mt-1 text-xs text-slate-500'>
+                Matched forecast and actual pairs
+              </p>
+            </div>
+
+            <div className='rounded-xl border border-slate-200 bg-white p-4'>
+              <p className='text-xs font-medium text-slate-500'>
+                Evaluation period
+              </p>
+              <p className='mt-2 text-lg font-semibold text-slate-900'>
+                {evaluation.period.start} – {evaluation.period.end}
+              </p>
+              <p className='mt-1 text-xs text-slate-500'>
+                UK national wind generation
+              </p>
+            </div>
+          </section>
+
+          <KpiGrid metrics={evaluation.metrics} />
+
+          <GenerationChart intervals={evaluation.intervals} />
+          <CutoffAuditTrail evaluation={evaluation} />
+          <section className='rounded-xl border border-slate-200 bg-white p-5'>
+            <h2 className='text-sm font-semibold text-slate-800'>
+              Evaluation methodology
+            </h2>
+            <p className='mt-2 text-sm leading-relaxed text-slate-600'>
+              Actual generation is aggregated to hourly values by taking the
+              mean of the two half-hourly readings. Forecasts are selected using
+              the 11:00 UTC day-ahead cutoff, and metrics are calculated over
+              matched hourly intervals.
+            </p>
+          </section>
+        </>
+      )}
+
+      {!loading && !error && !evaluation && (
+        <section className='rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600'>
+          No evaluation data is available for this period.
+        </section>
+      )}
+
+      <Footer />
+    </AppLayout>
+  )
+}
+
+export default App

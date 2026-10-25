@@ -1,58 +1,82 @@
+
 import React from 'react';
-import { Wind, BarChart3, Clock, AlertTriangle, Layers, ShieldCheck } from 'lucide-react';
+import {
+  Wind,
+  BarChart3,
+  Clock,
+  AlertTriangle,
+  Layers,
+  ShieldCheck,
+} from 'lucide-react';
 
 interface SidebarProps {
   currentView?: string;
   onNavigate?: (view: string) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard' }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentView = 'dashboard',
+  onNavigate,
+}) => {
   const navItems = [
-    { id: 'dashboard', label: 'Forecast Overview', icon: BarChart3, active: true },
-    { id: 'accuracy', label: 'Error Analytics', icon: Wind, active: false },
-    { id: 'timeline', label: 'Cutoff Audit Trail', icon: Clock, active: false },
-    { id: 'procurement', label: 'Wind Shortfall', icon: AlertTriangle, active: false },
-    { id: 'intervals', label: 'Half-Hourly Data', icon: Layers, active: false },
+    { id: 'dashboard', label: 'Forecast Overview', icon: BarChart3 },
+    { id: 'accuracy', label: 'Error Analytics', icon: Wind },
+    { id: 'timeline', label: 'Cutoff Audit Trail', icon: Clock },
+    { id: 'procurement', label: 'Wind Shortfall', icon: AlertTriangle },
+    { id: 'intervals', label: 'Half-Hourly Data', icon: Layers },
   ];
 
   return (
-    <aside className="w-64 bg-aerogrid-navy-900 border-r border-aerogrid-navy-800 flex flex-col justify-between select-none min-h-screen text-slate-300">
+    <aside className="flex min-h-screen w-64 flex-col justify-between select-none border-r border-aerogrid-navy-800 bg-aerogrid-navy-900 text-slate-300">
       <div>
         {/* Brand Header */}
-        <div className="h-16 px-6 flex items-center gap-3 border-b border-aerogrid-navy-800">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-aerogrid-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-950/40">
-            <Wind className="w-5 h-5 animate-pulse" />
+        <div className="flex h-16 items-center gap-3 border-b border-aerogrid-navy-800 px-6">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-aerogrid-emerald-600 to-teal-400 text-white shadow-md shadow-emerald-950/40">
+            <Wind className="h-5 w-5 animate-pulse" />
           </div>
+
           <div>
-            <h1 className="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
+            <h1 className="flex items-center gap-1.5 text-base font-bold tracking-tight text-white">
               AeroGrid
-              <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-aerogrid-emerald-500/10 text-aerogrid-emerald-500 border border-aerogrid-emerald-500/20">
+              <span className="rounded border border-aerogrid-emerald-500/20 bg-aerogrid-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-aerogrid-emerald-500">
                 UK
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400">Wind Intelligence Desk</p>
+            <p className="text-[11px] text-slate-400">
+              Wind Intelligence Desk
+            </p>
           </div>
         </div>
 
         {/* Navigation Items */}
-        <nav className="p-3 space-y-1">
-          <div className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+        <nav aria-label="Analysis navigation" className="space-y-1 p-3">
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Analysis Suite
           </div>
+
           {navItems.map((item) => {
             const Icon = item.icon;
             const isSelected = item.id === currentView;
+
             return (
               <button
                 key={item.id}
                 type="button"
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
+                onClick={() => onNavigate?.(item.id)}
+                aria-current={isSelected ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-medium transition-all ${
                   isSelected
-                    ? 'bg-aerogrid-navy-800 text-white border-l-2 border-aerogrid-emerald-500 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-aerogrid-navy-800/50'
+                    ? 'border-l-2 border-aerogrid-emerald-500 bg-aerogrid-navy-800 text-white shadow-sm'
+                    : 'text-slate-400 hover:bg-aerogrid-navy-800/50 hover:text-slate-200'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isSelected ? 'text-aerogrid-emerald-500' : 'text-slate-400'}`} />
+                <Icon
+                  className={`h-4 w-4 ${
+                    isSelected
+                      ? 'text-aerogrid-emerald-500'
+                      : 'text-slate-400'
+                  }`}
+                />
                 <span>{item.label}</span>
               </button>
             );
@@ -61,13 +85,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView = 'dashboard' }) =
       </div>
 
       {/* System Status Footer */}
-      <div className="p-4 border-t border-aerogrid-navy-800/80 bg-aerogrid-navy-950/40">
-        <div className="flex items-center gap-2.5 text-xs text-slate-300 mb-2">
-          <ShieldCheck className="w-4 h-4 text-aerogrid-emerald-500" />
+      <div className="border-t border-aerogrid-navy-800/80 bg-aerogrid-navy-950/40 p-4">
+        <div className="mb-2 flex items-center gap-2.5 text-xs text-slate-300">
+          <ShieldCheck className="h-4 w-4 text-aerogrid-emerald-500" />
           <span className="font-semibold text-slate-200">System Ready</span>
         </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          Elexon BMRS Live Connection Verified.
+
+        <p className="text-[11px] leading-relaxed text-slate-400">
+          Elexon BMRS data evaluation dashboard.
         </p>
       </div>
     </aside>
