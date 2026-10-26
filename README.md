@@ -13,9 +13,9 @@ visualization, and containerized delivery.
 
 ## Demo and repository
 
-- **Live application:** `https://<live-application-url>` *(placeholder)*
+- **Live application:** `https://aerogrid-three.vercel.app/>` 
 - **Public GitHub repository:** `https://github.com/vishwa073/Aerogrid`
-- **Local API documentation:** [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
+
 
 The live application URL is not currently configured. The dashboard can be
 run locally using Docker Compose.
