@@ -13,11 +13,15 @@ function formatNumber(value: number): string {
   }).format(value);
 }
 
-function formatUtcDateTime(value: string): string {
+function formatUtcDateTime(value: string | null | undefined): string {
+  if (!value) {
+    return 'Unavailable';
+  }
+
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return 'Unavailable';
   }
 
   return `${date.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
@@ -127,10 +131,10 @@ export function CutoffAuditTrail({
             </h3>
 
             <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-500">
-              A sample of up to 10 matched hourly intervals from the evaluation
-              response. Publication timestamps are not included in this
-              response, so this table cannot independently verify forecast
-              selection against the cutoff.
+              A sample of up to 10 matched hourly intervals. Each selected
+              forecast is the latest eligible publication at or before its
+              applicable previous-day cutoff. Forecasts published after the
+              cutoff are not eligible. All timestamps are shown in UTC.
             </p>
           </div>
 
@@ -141,11 +145,23 @@ export function CutoffAuditTrail({
         </div>
 
         <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full min-w-[520px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-slate-50">
               <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                 <th scope="col" className="px-4 py-3 font-medium">
                   Delivery time (UTC)
+                </th>
+
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Selected publication (UTC)
+                </th>
+
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Applicable cutoff (UTC)
+                </th>
+
+                <th scope="col" className="px-4 py-3 font-medium">
+                  Eligibility
                 </th>
 
                 <th scope="col" className="px-4 py-3 text-right font-medium">
@@ -165,6 +181,18 @@ export function CutoffAuditTrail({
             <tbody className="divide-y divide-slate-100">
               {auditRows.map((interval) => {
                 const error = interval.actual_mw - interval.forecast_mw;
+                const publicationTime = interval.forecast_publish_time
+                  ? new Date(interval.forecast_publish_time)
+                  : null;
+                const cutoffTime = interval.cutoff_time
+                  ? new Date(interval.cutoff_time)
+                  : null;
+                const isEligible =
+                  publicationTime !== null &&
+                  cutoffTime !== null &&
+                  !Number.isNaN(publicationTime.getTime()) &&
+                  !Number.isNaN(cutoffTime.getTime()) &&
+                  publicationTime.getTime() <= cutoffTime.getTime();
 
                 return (
                   <tr
@@ -173,6 +201,26 @@ export function CutoffAuditTrail({
                   >
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                       {formatUtcDateTime(interval.start_time)}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                      {formatUtcDateTime(interval.forecast_publish_time)}
+                    </td>
+
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                      {formatUtcDateTime(interval.cutoff_time)}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {isEligible ? (
+                        <span className="whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                          Eligible at cutoff
+                        </span>
+                      ) : (
+                        <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                          Eligibility unavailable
+                        </span>
+                      )}
                     </td>
 
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">
@@ -202,7 +250,7 @@ export function CutoffAuditTrail({
               {auditRows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={7}
                     className="px-4 py-10 text-center"
                   >
                     <div className="mx-auto flex max-w-sm flex-col items-center">

@@ -32,7 +32,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
 
           <span className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">
-            Cutoff: 11:00 UTC
+            Cutoff: {String(evaluation.cutoff_hour_utc).padStart(2, '0')}:00 UTC
           </span>
         </div>
       </section>
@@ -90,7 +90,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <p className="mt-2 text-sm leading-relaxed text-slate-600">
           Actual generation is aggregated to hourly values by taking the mean
           of the two half-hourly readings. Forecasts are selected using the
-          11:00 UTC day-ahead cutoff, and metrics are calculated over matched
+          {String(evaluation.cutoff_hour_utc).padStart(2, '0')}:00 UTC day-ahead
+          cutoff; for each delivery date, the latest publication at or before
+          the previous-day cutoff is used. Metrics are calculated over matched
           hourly intervals.
         </p>
       </section>

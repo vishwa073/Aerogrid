@@ -1,4 +1,5 @@
 
+from datetime import datetime
 from typing import List, Optional, Union
 
 from pydantic import field_validator
@@ -51,6 +52,31 @@ class Settings(BaseSettings):
     # Decision cutoff time configuration.
     # 11:00 UTC is a provisional assumption that must be verified.
     DEFAULT_DECISION_CUTOFF_TIME: str = "11:00"
+
+    @field_validator("DEFAULT_DECISION_CUTOFF_TIME")
+    @classmethod
+    def validate_decision_cutoff_time(cls, value: str) -> str:
+        if len(value) != 5 or value[2] != ":":
+            raise ValueError(
+                "DEFAULT_DECISION_CUTOFF_TIME must use HH:MM format"
+            )
+
+        try:
+            datetime.strptime(value, "%H:%M")
+        except ValueError as exc:
+            raise ValueError(
+                "DEFAULT_DECISION_CUTOFF_TIME must use HH:MM format"
+            ) from exc
+
+        return value
+
+    @property
+    def default_decision_cutoff_hour_utc(self) -> int:
+        """Return the configured day-ahead cutoff hour in UTC."""
+        return datetime.strptime(
+            self.DEFAULT_DECISION_CUTOFF_TIME,
+            "%H:%M",
+        ).hour
 
     # PostgreSQL database settings
     POSTGRES_SERVER: str = "localhost"

@@ -29,6 +29,8 @@ export interface EvaluationInterval {
   start_time: string;
   actual_mw: number;
   forecast_mw: number;
+  forecast_publish_time: string | null;
+  cutoff_time: string | null;
 }
 
 export interface EvaluationResponse {

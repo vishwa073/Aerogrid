@@ -3,6 +3,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.core.config import settings
 from app.services.elexon_client import ElexonAPIError, ElexonClient
 from app.services.forecast_selection import select_forecast_snapshots
 from app.services.metrics import calculate_forecast_metrics
@@ -88,6 +89,7 @@ def select_day_ahead_forecasts(
 def build_matched_pairs(
     forecasts: list[dict],
     actuals: dict[datetime, float],
+    cutoff_hour_utc: int,
 ) -> list[dict]:
     """Match forecast records to actuals using exact UTC timestamps."""
     pairs = []
@@ -100,11 +102,26 @@ def build_matched_pairs(
         if actual_mw is None or forecast_mw is None:
             continue
 
+        cutoff = datetime.combine(
+            timestamp.date() - timedelta(days=1),
+            time(hour=cutoff_hour_utc),
+            tzinfo=timezone.utc,
+        )
+
+        publish_time = forecast.get("publishTime")
         pairs.append(
             {
                 "start_time": timestamp.isoformat().replace("+00:00", "Z"),
                 "actual_mw": actual_mw,
                 "forecast_mw": float(forecast_mw),
+                "forecast_publish_time": (
+                    normalize_timestamp(publish_time)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                    if publish_time
+                    else None
+                ),
+                "cutoff_time": cutoff.isoformat().replace("+00:00", "Z"),
             }
         )
 
@@ -113,9 +130,15 @@ def build_matched_pairs(
 
 @router.get("/evaluation/january-2026", tags=["Evaluation"])
 async def evaluate_january_2026(
-    cutoff_hour_utc: int = Query(default=11, ge=0, le=23),
+    cutoff_hour_utc: int | None = Query(default=None, ge=0, le=23),
 ):
     """Compare hourly wind forecasts with hourly actual generation."""
+    effective_cutoff_hour_utc = (
+        settings.default_decision_cutoff_hour_utc
+        if cutoff_hour_utc is None
+        else cutoff_hour_utc
+    )
+
     try:
         client = ElexonClient()
 
@@ -145,12 +168,13 @@ async def evaluate_january_2026(
 
     selected_forecasts = select_day_ahead_forecasts(
         forecast_records,
-        cutoff_hour_utc,
+        effective_cutoff_hour_utc,
     )
 
     hourly_pairs = build_matched_pairs(
         selected_forecasts,
         hourly_actuals,
+        effective_cutoff_hour_utc,
     )
 
     hourly_metrics = calculate_forecast_metrics(
@@ -163,7 +187,7 @@ async def evaluate_january_2026(
             "start": "2026-01-01",
             "end": "2026-01-31",
         },
-        "cutoff_hour_utc": cutoff_hour_utc,
+        "cutoff_hour_utc": effective_cutoff_hour_utc,
         "actual_half_hourly_interval_count": len(january_actual_records),
         "hourly_actual_interval_count": len(hourly_actuals),
         "selected_forecast_interval_count": len(selected_forecasts),
